@@ -1,0 +1,7 @@
+uint32 target_id
+float64 goal_x
+float64 goal_y
+float64 goal_radius
+---
+uint8 error_code
+

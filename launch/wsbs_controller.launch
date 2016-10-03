@@ -1,0 +1,15 @@
+<!-- -*- mode: XML -*- -->
+
+<launch>
+	<master auto="start"/>
+
+	<node pkg="wsbs" type="wsbs_controller" name="wsbs_controller" output="screen" respawn="false">
+	<param name="use_xtion" value="false"/>
+	</node>
+
+
+      <node pkg="rosbag" type="record" name="record_1" 
+	args="/tf /imu/data /odom /cmd_vel /scan360 /people/navigation /depthcamscan_node/scanXtion /wsbs/markers/robot_forces /spencer/perception/tracked_persons /wsbs/status -o /home/teresa/data/wsbs.bag" />
+
+
+</launch>
