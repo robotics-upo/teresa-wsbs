@@ -41,7 +41,7 @@ public:
 
 
 	Angle() : value(0) {}
-	~Angle() {}
+	virtual ~Angle() {}
 
 	static Angle fromRadian(double value) {
 		return Angle(value);
@@ -159,12 +159,15 @@ private:
 };
 
 }
+namespace std
+{
 inline
-std::ostream& operator<<(std::ostream& stream, const utils::Angle& alpha)
+ostream& operator<<(ostream& stream, const utils::Angle& alpha)
 {
 	stream<<alpha.toRadian();
 	return stream;
 }
 
+}
 
 #endif

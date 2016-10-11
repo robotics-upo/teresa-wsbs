@@ -26,6 +26,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <geometry_msgs/Point.h>
 
 #include "angle.hpp"
 
@@ -36,11 +37,20 @@ class Vector2d
 public:
 	Vector2d() : x(0),y(0) {}
 	Vector2d(double x, double y) : x(x),y(y) {}
-	~Vector2d() {}
+	virtual ~Vector2d() {}
 	double operator()(int index) const {return index==0?x:y;}
 	double operator[](int index) const {return index==0?x:y;}
 	double getX() const {return x;}
 	double getY() const {return y;}
+
+	geometry_msgs::Point toPoint() const
+	{
+		geometry_msgs::Point p;
+		p.x = x;
+		p.y = y;
+		p.z = 0;
+		return p;
+	}
 
 	Vector2d& set(double x, double y)
 	{
@@ -202,13 +212,15 @@ utils::Vector2d operator *(double scalar, const utils::Vector2d& v)
 	return w;
 }
 
+namespace std
+{
 inline
-std::ostream& operator<<(std::ostream& stream, const utils::Vector2d& v)
+ostream& operator<<(ostream& stream, const utils::Vector2d& v)
 {
 	stream<<"("<<v.getX()<<","<<v.getY()<<")"; 
 	return stream;
 }
 
-
+}
 
 #endif

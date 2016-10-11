@@ -21,66 +21,40 @@
 /**                                                                    */
 /***********************************************************************/
 
+
 #include <ros/ros.h>
+#include <wsbs/start.h>
+#include <wsbs/stop.h>
+#include <wsbs/select_mode.h>
+#include <wsbs/select_target_id.h>
+#include <wsbs/forces.hpp>
+#include <wsbs/cmd_vel.hpp>
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
-#include <wsbs/start.h>
-#include <wsbs/stop.h>
-#include <wsbs/vector2d.hpp>
-#include <wsbs/robot_forces.hpp>
-#include <cstdint>
-#include <cmath>
-#include <tf/transform_listener.h>
-
-
 
 namespace wsbs
 {
 
 
 
-class Timeout
-{
-public:
-	Timeout() :id(""), time(ros::Time::now()), timeout(0) {}
-	void setId(const std::string& id) {Timeout::id = id;}
-	void setTimeout(double timeout) {Timeout::timeout = timeout;}
-	void setTime(const ros::Time& time) {Timeout::time = time;}
-	double getTimeout() const {return timeout;}
-	bool check(const ros::Time& current, bool isError = true) const
-	{
-		if ((current - time).toSec() >= timeout) {
-			if (isError) {
-				ROS_ERROR("%s timeout", id.c_str());
-			}
-			return true;
-		}
-		return false;
-	}
-private:
-	std::string id;
-	ros::Time time;
-	double timeout;
-};
 
 
 class Controller
 {
 public:
-
 	// Controller state
 	enum State {
-		WAITING_FOR_START  = 0, 
-		WAITING_FOR_ODOM   = 1, 
-		WAITING_FOR_LASER  = 2, 
-		WAITING_FOR_XTION  = 3,
-		WAITING_FOR_PEOPLE = 4, 
-		WAITING_FOR_GOALS  = 5, 
-		RUNNING            = 6, 
-		TARGET_LOST        = 7,
-		FINISHED           = 8
+		WAITING_FOR_START    = 0, 
+		WAITING_FOR_ODOM     = 1, 
+		WAITING_FOR_LASER    = 2, 
+		WAITING_FOR_XTION    = 3,
+		WAITING_FOR_PEOPLE   = 4,
+		RUNNING              = 5, 
+		TARGET_LOST          = 6,
+		FINISHED             = 7,
+		ABORTED		     = 8
 	};
 
 	// Service error codes
@@ -91,268 +65,230 @@ public:
 		STATE_IS_WAITING_FOR_LASER  = 3, 
 		STATE_IS_WAITING_FOR_XTION  = 4,
 		STATE_IS_WAITING_FOR_PEOPLE = 5, 
-		STATE_IS_WAITING_FOR_GOALS  = 6, 
-		STATE_IS_RUNNING            = 7, 
-		STATE_IS_TARGET_LOST        = 8,
-		STATE_IS_FINISHED           = 9
+		STATE_IS_RUNNING            = 6, 
+		STATE_IS_TARGET_LOST        = 7,
+		STATE_IS_FINISHED           = 8
 	};
 
+
+	
 	Controller(ros::NodeHandle& n, ros::NodeHandle& pn);
 	~Controller() {}
-
-
 private:
-
-
 
 	bool start(wsbs::start::Request &req, wsbs::start::Response &res);
 	bool stop(wsbs::stop::Request &req, wsbs::stop::Response &res);
+	bool selectTargetId(wsbs::select_target_id::Request &req, wsbs::select_target_id::Response &res);
+	bool selectMode(wsbs::select_mode::Request &req, wsbs::select_mode::Response &res);
 
-	void peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
 	void odomReceived(const nav_msgs::Odometry::ConstPtr& odom);
 	void laserReceived(const sensor_msgs::LaserScan::ConstPtr& laser);
 	void xtionReceived(const sensor_msgs::LaserScan::ConstPtr& xtion);
+	void peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
+	void publishForceMarker(unsigned index, const std_msgs::ColorRGBA& color, 
+					const utils::Vector2d& force, visualization_msgs::MarkerArray& markers);
 
-	void checkTimeouts(const ros::Time& current_time);
-	
-	
+	void publishTrajectories();
+	void stopRobot();
 	void setState(const State& state);
 	static const char *getStateId(const State& state);
 
+	static std_msgs::ColorRGBA getColor(double r, double g, double b, double a);
+
+	void publishForces();
+	void publishPath();
+	void publishGoal();
+	void publishStatus();
+	void checkEndingCondition(bool finishing);
+	void checkTimeouts(const ros::Time& current_time);
+
+	State state;
+
+	std::string cmd_vel_id;
 	std::string laser_id;
 	std::string xtion_id;
 	std::string odom_id; 
 	std::string people_id; 
-	std::string goals_id;
 
 	Timeout odom_timeout;
 	Timeout laser_timeout;
 	Timeout xtion_timeout;
 	Timeout people_timeout;
-	Timeout goals_timeout;
+	Timeout finish_timeout;
+	Timeout target_lost_timeout;
+	Timeout goal_timeout;
 	
+	ros::Publisher cmd_vel_pub;
 	
-	bool use_xtion;
-
-	State state;
-
-	RobotForces forces;
-
+	unsigned targetId;
+	ControllerMode controller_mode;
 	
-		
+	ros::Publisher markers_pub;
+	ros::Publisher path_pub;
+	ros::Publisher goal_pub;
+	ros::Publisher trajectories_pub;
+	ros::Publisher status_pub;
 
+	geometry_msgs::Twist zeroTwist;
+
+	bool is_finishing;
+
+	utils::Vector2d currentGoal;
 };
 
+
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
-: state(WAITING_FOR_START),
-  forces(pn)
+:  state(WAITING_FOR_START),
+   controller_mode(RIGHT),
+   is_finishing(false)
 {
-	int target_goals_policy_int, target_lost_policy_int;
 
-	std::string cmd_vel_id;
-
-	double freq;
 	double odom_timeout_threshold;
 	double laser_timeout_threshold;
 	double xtion_timeout_threshold;
 	double people_timeout_threshold;
-	double goals_timeout_threshold;
-	
-	
+	double finish_timeout_threshold;
+	double target_lost_timeout_threshold;
+	double goal_timeout_threshold;
+	double freq;
 
+	zeroTwist.linear.x = 0;
+	zeroTwist.linear.y = 0;
+	zeroTwist.linear.z = 0;
+	zeroTwist.angular.x = 0;
+	zeroTwist.angular.y = 0;
+	zeroTwist.angular.z = 0;
+
+	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("laser_id",laser_id,"/scan360");
 	pn.param<std::string>("xtion_id",xtion_id,"/depthcamscan_node/scanXtion");
-	pn.param<std::string>("cmd_vel_id",cmd_vel_id,"/cmd_vel");
-	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<std::string>("goals_id",goals_id,"/people/goals");
+	pn.param<std::string>("cmd_vel_id",cmd_vel_id,"/cmd_vel");
 	
-	   
-	pn.param<double>("robot_max_lin_vel",forces.robot_max_lin_vel,0.3);          
-	pn.param<double>("robot_max_ang_vel",forces.robot_max_ang_vel,0.75);   
-	pn.param<double>("robot_lin_vel_inc",forces.robot_lin_vel_inc,0.15);        
-	pn.param<double>("robot_ang_vel_inc",forces.robot_ang_vel_inc,0.15);     
-	pn.param<double>("robot_max_lin_acc",forces.robot_max_lin_acc,1.0);
-	pn.param<double>("robot_max_ang_acc",forces.robot_max_ang_acc,1.0);
+	pn.param<double>("robot_radius",FORCES.getParams().robotRadius,0.35);
+	pn.param<double>("person_radius",FORCES.getParams().personRadius,0.35);
 
-	
-	pn.param<double>("robot_radius",forces.robot_radius,0.35);
-	pn.param<double>("collision_threshold",forces.collision_threshold,0.35);
-	pn.param<double>("person_radius",forces.person_radius,0.35);
-			
-	pn.param<int>("target_goals_policy",target_goals_policy_int,NAIVE_GOALS);
-	if (target_goals_policy_int<0 || target_goals_policy_int>2) {
-		ROS_ERROR("Invalid target goals policy");
-		ROS_BREAK();
-	}
-	forces.target_goals_policy = (TargetGoalsPolicy)target_goals_policy_int;
-	pn.param<int>("target_lost_policy",target_lost_policy_int,WALK_TO_LAST_TARGET_POSITION);
-	if (target_lost_policy_int<0 || target_lost_policy_int>2) {
-		ROS_ERROR("Invalid target lost policy");
-		ROS_BREAK();
-	}
-	forces.target_lost_policy = (TargetLostPolicy)target_lost_policy_int;
-
-	pn.param<bool>("use_xtion",use_xtion,true);
-	
-	
 	pn.param<double>("odom_timeout",odom_timeout_threshold,0.5);
 	pn.param<double>("laser_timeout",laser_timeout_threshold,0.5);
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
 	pn.param<double>("people_timeout",people_timeout_threshold,2.0);
-	pn.param<double>("goals_timeout",goals_timeout_threshold,5.0);	
-	pn.param<double>("finish_timeout",forces.finish_timeout,20);
-
-	pn.param<double>("force_sigma_obstacle",forces.force_sigma_obstacle,0.1);
-	pn.param<double>("force_factor_desired",forces.force_factor_desired,1.0);
-	pn.param<double>("force_factor_obstacle",forces.force_factor_obstacle,20);
-	pn.param<double>("force_factor_social",forces.force_factor_social,2.1);
-	pn.param<double>("force_factor_group_gaze",forces.force_factor_group_gaze,3.0);
-	pn.param<double>("force_factor_group_coherence",forces.force_factor_group_coherence,2.0);
-	pn.param<double>("force_factor_group_repulsion",forces.force_factor_group_repulsion,1.0);
-	pn.param<double>("relaxation_time",forces.relaxation_time,0.5);
-	pn.param<double>("lambda",forces.lambda,2.0);
-	pn.param<double>("gamma",forces.gamma,0.35);
-	pn.param<double>("n_prime",forces.n_prime,3.0);
-	pn.param<double>("n",forces.n,2.0);
-	pn.param<double>("naive_goals_time",forces.naive_goals_time,5.0);
+	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
+	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,20);
+	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 
 	pn.param<double>("freq",freq,15);
+	pn.param<bool>("heuristic_planner",FORCES.getParams().heuristicPlanner, true);
 
 	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Controller::start,this);
-	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Controller::stop,this);	
+	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Controller::stop,this);
+	ros::ServiceServer select_id_srv  = n.advertiseService("/wsbs/select_target_id", &Controller::selectTargetId,this);	
+	ros::ServiceServer select_mode_srv  = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
 
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Controller::peopleReceived,this);
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Controller::odomReceived,this);
 	ros::Subscriber laser_sub = n.subscribe<sensor_msgs::LaserScan>(laser_id, 1, &Controller::laserReceived,this);
 	ros::Subscriber xtion_sub;
-	if (use_xtion) {
+	if (!xtion_id.empty()) {
 		xtion_sub = n.subscribe<sensor_msgs::LaserScan>(xtion_id, 1, &Controller::xtionReceived,this);
 	}
-
-	ros::Publisher status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
-	forces.cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
-		
-	ros::Rate r(freq);
-	ros::Time current_time = ros::Time::now();
+	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
+	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
+	markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
+	path_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/target_path", 1);
+	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
+	trajectories_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/trajectories", 1);
 
 	odom_timeout.setId(odom_id);
 	odom_timeout.setTimeout(odom_timeout_threshold);
-	odom_timeout.setTime(current_time);
+	odom_timeout.setTime(ros::Time::now());
 
 	laser_timeout.setId(laser_id);
 	laser_timeout.setTimeout(laser_timeout_threshold);
-	laser_timeout.setTime(current_time);
+	laser_timeout.setTime(ros::Time::now());
 
 	xtion_timeout.setId(xtion_id);
 	xtion_timeout.setTimeout(xtion_timeout_threshold);
-	xtion_timeout.setTime(current_time);
+	xtion_timeout.setTime(ros::Time::now());
 
 	people_timeout.setId(people_id);
 	people_timeout.setTimeout(people_timeout_threshold);
-	people_timeout.setTime(current_time);
+	people_timeout.setTime(ros::Time::now());
 
-	goals_timeout.setId(goals_id);
-	goals_timeout.setTimeout(goals_timeout_threshold);
-	goals_timeout.setTime(current_time);
+	target_lost_timeout.setId("Target lost");
+	target_lost_timeout.setTimeout(target_lost_timeout_threshold);
+	target_lost_timeout.setTime(ros::Time::now());
+
+	finish_timeout.setId("Finish");
+	finish_timeout.setTimeout(finish_timeout_threshold);
+	finish_timeout.setTime(ros::Time::now());
+
+	goal_timeout.setId("Goal");
+	goal_timeout.setTimeout(goal_timeout_threshold);
+	goal_timeout.setTime(ros::Time::now());
 
 	
-	double dt = 1/freq;
-	std_msgs::UInt8 status_msg;
+	ros::Rate r(freq);
+	bool finishing;
 	while(n.ok()) {
-		current_time = ros::Time::now();
-		checkTimeouts(current_time);
+		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
-			if (forces.generateCmdVel(dt)) {
-				setState(FINISHED);
-			
-			}
-			forces.publishMarkers();
+			FORCES.compute(controller_mode);
+			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
+			cmd_vel_pub.publish(CMD_VEL.getCommand());
+			checkEndingCondition(finishing);
+			publishForces();
+			publishPath();
+			publishGoal();
+			publishTrajectories();
 		}
-		status_msg.data = (uint8_t)state;
-		status_pub.publish(status_msg);
+		publishStatus();
 		r.sleep();	
 		ros::spinOnce();	
 	}
 }
 
 
-bool Controller::start(wsbs::start::Request &req, wsbs::start::Response &res) 
+void Controller::checkEndingCondition(bool finishing)
 {
-	ROS_INFO("START received");
-	if (state != WAITING_FOR_START && state != FINISHED) {
-		ROS_ERROR("Error: State is %s",getStateId(state));
-		res.error_code = state+1;
-	} else {
-		ROS_INFO("Target ID is %d",req.target_id);
-		if (req.goal_radius<0) {
-			ROS_INFO("The mission finishes when the target stops for %.02f seconds",forces.finish_timeout);
-		} else {
-			ROS_INFO("The mission finishes when the target and the robot are closer than %.02f meters from position (%.02f, %.02f)@Odom", req.goal_radius,req.goal_x,req.goal_y);
-		}
-		forces.target_id = req.target_id;
-		forces.goalPosition.set(req.goal_x,req.goal_y);
-		forces.goalR = req.goal_radius;
-		setState(WAITING_FOR_ODOM);
-		res.error_code = 0;
-	}
-	return true;
-}
-
-
-bool Controller::stop(wsbs::stop::Request &req, wsbs::stop::Response &res)
-{
-	ROS_INFO("STOP received");
-	if (state == WAITING_FOR_START) {
-		ROS_ERROR("Error: State is %s",getStateId(state));
-		res.error_code = state+1;
-	} else {
-		setState(WAITING_FOR_START);
-		res.error_code = 0;
-	}
-	return true;
-}
-
-
-
-const char *Controller::getStateId(const State& state)
-{
-	static std::string ids[] = {"WAITING_FOR_START",
-				    "WAITING_FOR_ODOM",
-				    "WAITING_FOR_LASER",
-				    "WAITING_FOR_XTION",
-				    "WAITING_FOR_PEOPLE",
-				    "WAITING_FOR_GOALS",
-				    "RUNNING",
-				    "TARGET_LOST",
-				    "FINISHED"};
-
-	return ids[state].c_str();
-}
-
-
-void Controller::setState(const State& state)
-{
-	if (state == Controller::state) {
+	if (state == TARGET_LOST &&
+		target_lost_timeout.check(ros::Time::now())) {
+		setState(ABORTED);
 		return;
 	}
-		
-	if ( (Controller::state == RUNNING && state != TARGET_LOST) ||
-		(Controller::state == TARGET_LOST && state != RUNNING)) {
-		forces.stopRobot();
-		forces.resetForces();
-		forces.publishMarkers();
-	}	
-	ROS_INFO("State is %s",getStateId(state));
-	Controller::state = state;
 
+	
+	if (!is_finishing && finishing) {
+		finish_timeout.setTime(ros::Time::now());
+	}
+	
+	is_finishing = finishing;
+
+	if (state == RUNNING && is_finishing && finish_timeout.check(ros::Time::now(),false)) {
+		is_finishing=false;
+		setState(FINISHED);
+		return;
+	}
+
+	if (state == RUNNING && (currentGoal - FORCES.getData().goal).norm()<0.01 &&
+		goal_timeout.check(ros::Time::now())) {
+			setState(ABORTED);
+	} else {
+		currentGoal = FORCES.getData().goal;
+		goal_timeout.setTime(ros::Time::now());
+	}
 }
 
+void Controller::publishStatus()
+{
+	std_msgs::UInt8 status_msg;
+	status_msg.data = (uint8_t)state;
+	status_pub.publish(status_msg);
 
+}
 
 void Controller::checkTimeouts(const ros::Time& current_time)
 {
-	if (state == WAITING_FOR_START || state == FINISHED) {
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
 
@@ -369,7 +305,7 @@ void Controller::checkTimeouts(const ros::Time& current_time)
 		return;
 	}	
 	
-	if (use_xtion && 
+	if (!xtion_id.empty() && 
 		state!= WAITING_FOR_ODOM && 
 		state!= WAITING_FOR_LASER && 
 		state!= WAITING_FOR_XTION && 
@@ -387,25 +323,230 @@ void Controller::checkTimeouts(const ros::Time& current_time)
 		return;
 	}	
 
-	if (forces.target_goals_policy == PEOPLE_GOALS && 
-		state!= WAITING_FOR_ODOM && 
-		state!= WAITING_FOR_LASER && 
-		state!= WAITING_FOR_XTION && 
-		state!= WAITING_FOR_PEOPLE && 
-		state!= WAITING_FOR_GOALS && 
-		goals_timeout.check(current_time)) {
-		setState(WAITING_FOR_GOALS);
-		return;
-	}	
+	
 
 }
 
-void Controller::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
+
+void Controller::publishTrajectories()
 {
-	if (state == WAITING_FOR_START || state == FINISHED) {
+	for (unsigned i=0; i< CMD_VEL.getMarkers().markers.size(); i++) {
+		CMD_VEL.getMarkers().markers[i].action = (state==RUNNING || state==TARGET_LOST)?0:2;
+	}
+	trajectories_pub.publish(CMD_VEL.getMarkers());
+
+}
+
+
+void Controller::stopRobot()
+{
+	cmd_vel_pub.publish(zeroTwist);
+}
+
+
+
+bool Controller::start(wsbs::start::Request &req, wsbs::start::Response &res) 
+{
+	ROS_INFO("START received");
+	if (state != WAITING_FOR_START && state != FINISHED && state != ABORTED) {
+		ROS_ERROR("Error: State is %s",getStateId(state));
+		res.error_code = state+1;
+	} else {
+		ROS_INFO("Target ID is %d",req.target_id);
+		targetId = req.target_id;
+		setState(WAITING_FOR_ODOM);
+		res.error_code = 0;
+	}
+	return true;
+}
+
+
+bool Controller::stop(wsbs::stop::Request &req, wsbs::stop::Response &res)
+{
+	ROS_INFO("STOP received");
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
+		ROS_ERROR("Error: State is %s",getStateId(state));
+		res.error_code = state+1;
+	} else {
+		setState(FINISHED);
+		res.error_code = 0;
+	}
+	return true;
+}
+
+bool Controller::selectTargetId(wsbs::select_target_id::Request &req, wsbs::select_target_id::Response &res)
+{
+	ROS_INFO("SELECT_TARGET_ID received");
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
+		ROS_ERROR("Error: State is %s",getStateId(state));
+		res.error_code = state+1;
+	} else {
+		ROS_INFO("Target ID is %d",req.target_id);
+		targetId = req.target_id;
+		res.error_code = 0;
+	}
+	return true;
+}
+
+bool Controller::selectMode(wsbs::select_mode::Request &req, wsbs::select_mode::Response &res)
+{
+	ROS_INFO("SELECT_MODE received");
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
+		ROS_ERROR("Error: State is %s",getStateId(state));
+		res.error_code = state+1;
+	} else {
+		ROS_INFO("Controller mode is %d",req.controller_mode);
+		controller_mode = (ControllerMode)req.controller_mode;
+		res.error_code = 0;
+	}
+	return true;
+}
+
+std_msgs::ColorRGBA Controller::getColor(double r, double g, double b, double a)
+{
+	std_msgs::ColorRGBA color;
+	color.r = r;
+	color.g = g;
+	color.b = b;
+	color.a = a;
+	return color;
+}
+
+
+const char *Controller::getStateId(const State& state)
+{
+	static std::string ids[] = {"WAITING_FOR_START",
+				    "WAITING_FOR_ODOM",
+				    "WAITING_FOR_LASER",
+				    "WAITING_FOR_XTION",
+				    "WAITING_FOR_PEOPLE",
+				    "RUNNING",
+				    "TARGET_LOST",
+				    "FINISHED",
+				    "ABORTED"};
+
+	return ids[state].c_str();
+}
+
+
+void Controller::setState(const State& state)
+{
+	if (state == Controller::state) {
 		return;
 	}
-	if (forces.setRobot(odom)) {
+		
+	if ( (Controller::state == RUNNING && state != TARGET_LOST) ||
+		(Controller::state == TARGET_LOST && state != RUNNING)) {
+		stopRobot();
+		FORCES.reset();
+		publishForces();
+		publishPath();
+		publishGoal();
+		publishTrajectories();
+	}	
+	ROS_INFO("State is %s",getStateId(state));
+	Controller::state = state;
+	if (state == TARGET_LOST) {
+		target_lost_timeout.setTime(ros::Time::now());
+	}
+}
+
+
+
+
+void Controller::publishForceMarker(unsigned index, const std_msgs::ColorRGBA& color, 
+					const utils::Vector2d& force, 
+					visualization_msgs::MarkerArray& markers) 
+{
+	visualization_msgs::Marker marker;
+	marker.header.frame_id = "/odom";
+	marker.header.stamp = ros::Time::now();
+	marker.ns = "robot_forces";
+	marker.id = index;
+	marker.action = force.norm()>1e-4 && (state==RUNNING || state==TARGET_LOST)?0:2;
+	marker.color = color;
+	marker.scale.x = std::max(1e-4,force.norm());
+	marker.scale.y = 0.1;
+	marker.scale.z = 0.1;
+	marker.pose.position.x = FORCES.getData().robot.position.getX();
+	marker.pose.position.y = FORCES.getData().robot.position.getY();
+	marker.pose.position.z = 0;
+	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,force.angle().toRadian());
+	markers.markers.push_back(marker);
+}
+
+
+
+
+void Controller::publishForces()
+{
+	visualization_msgs::MarkerArray markers;
+	publishForceMarker(0,getColor(0,0,1,1),FORCES.getData().obstacleForce,markers);
+	publishForceMarker(1,getColor(0,1,1,1),FORCES.getData().socialForce,markers);	
+	publishForceMarker(2,getColor(0,1,0,1),FORCES.getData().groupForce,markers);	
+	publishForceMarker(3,getColor(1,0,0,1),FORCES.getData().desiredForce,markers);	
+	//publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().globalForce,markers);	
+	publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().velocityRef,markers);	
+	markers_pub.publish(markers);
+}
+
+
+void Controller::publishPath()
+{
+	visualization_msgs::Marker marker;
+	marker.header.frame_id = "/odom";
+	marker.header.stamp = ros::Time::now();
+	marker.ns = "target_path";
+	marker.type = 4;
+	marker.id = 0;
+	marker.action = FORCES.getData().targetHistory.size()>0  && (state==RUNNING || state==TARGET_LOST)?0:2;
+	marker.color = getColor(0,1,0,1);
+	marker.scale.x = 0.05;
+	
+	for (auto it = 	FORCES.getData().targetHistory.begin(); it != FORCES.getData().targetHistory.end(); ++it) {
+		geometry_msgs::Point p;
+		p.x = it->position.getX();
+		p.y = it->position.getY();
+		p.z = 0;
+		marker.points.push_back(p);
+	}
+	path_pub.publish(marker);	
+
+
+}
+
+
+void Controller::publishGoal()
+{
+	visualization_msgs::Marker marker;
+	marker.header.frame_id = "/odom";
+	marker.header.stamp = ros::Time::now();
+	marker.ns = "goal";
+	marker.type = 2;
+	marker.id = 0;
+	marker.action = FORCES.getData().validGoal && (state==RUNNING || state==TARGET_LOST)?0:2;
+	marker.color = getColor(1,0,0,1);
+	marker.scale.x = 0.2;
+	marker.scale.y = 0.2;
+	marker.scale.z = 0.2;
+	marker.pose.position.x = FORCES.getData().goal.getX();
+	marker.pose.position.y = FORCES.getData().goal.getY();
+	marker.pose.position.z = 0;
+	
+
+	goal_pub.publish(marker);	
+
+
+}
+
+
+
+void Controller::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
+{
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
+		return;
+	}
+	if (FORCES.setRobot(odom)) {
 		odom_timeout.setTime(ros::Time::now());
 		if (state == WAITING_FOR_ODOM) {
 			setState(WAITING_FOR_LASER);
@@ -414,28 +555,25 @@ void Controller::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
 }
 
 
-
-
 void Controller::laserReceived(const sensor_msgs::LaserScan::ConstPtr& laser)
 {
-	if (state == WAITING_FOR_START || state == FINISHED) {
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (forces.setLaser(laser)) {
+	if (FORCES.setLaser(laser)) {
 		laser_timeout.setTime(ros::Time::now());
 		if (state == WAITING_FOR_LASER) {
-			setState(use_xtion ? WAITING_FOR_XTION : WAITING_FOR_PEOPLE);
+			setState(xtion_id.empty() ? WAITING_FOR_PEOPLE : WAITING_FOR_XTION);
 		}
 	}
 }
 
-
 void Controller::xtionReceived(const sensor_msgs::LaserScan::ConstPtr& xtion)
 {
-	if (state == WAITING_FOR_START || state == FINISHED) {
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (forces.setXtion(xtion)) {
+	if (FORCES.setXtion(xtion)) {
 		xtion_timeout.setTime(ros::Time::now());
 		if (state == WAITING_FOR_XTION) {
 			setState(WAITING_FOR_PEOPLE);
@@ -445,17 +583,17 @@ void Controller::xtionReceived(const sensor_msgs::LaserScan::ConstPtr& xtion)
 
 void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
 {
-	if (state == WAITING_FOR_START || state == FINISHED) {
+	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (forces.setPeople(people)) {
+	if (FORCES.setPeople(people, targetId)) {
 		people_timeout.setTime(ros::Time::now());
-		if (state == RUNNING && !forces.isTarget()) {
+		if (state == RUNNING && !FORCES.getData().targetFound) {
 			setState(TARGET_LOST);
-		} else if (state == TARGET_LOST && forces.isTarget()) {
+		} else if (state == TARGET_LOST && FORCES.getData().targetFound) {
 			setState(RUNNING);
 		} else	if (state == WAITING_FOR_PEOPLE) {
-			setState(forces.target_goals_policy == PEOPLE_GOALS ? WAITING_FOR_GOALS : (forces.isTarget() ? RUNNING : TARGET_LOST));
+			setState(FORCES.getData().targetFound ? RUNNING : TARGET_LOST );
 		}
 	}
 }

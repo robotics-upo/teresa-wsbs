@@ -60,6 +60,8 @@ add_service_files(
    FILES
    start.srv
    stop.srv
+   select_mode.srv
+   select_target_id.srv
 )
 
 ## Generate actions in the 'action' folder

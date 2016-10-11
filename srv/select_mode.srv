@@ -1,0 +1,3 @@
+uint8 controller_mode
+---
+uint8 error_code
