@@ -23,12 +23,12 @@
 
 
 #include <ros/ros.h>
-#include <wsbs/start.h>
-#include <wsbs/stop.h>
-#include <wsbs/select_mode.h>
-#include <wsbs/select_target_id.h>
-#include <wsbs/forces.hpp>
-#include <wsbs/cmd_vel.hpp>
+#include <teresa_wsbs/start.h>
+#include <teresa_wsbs/stop.h>
+#include <teresa_wsbs/select_mode.h>
+#include <teresa_wsbs/select_target_id.h>
+#include <teresa_wsbs/forces.hpp>
+#include <teresa_wsbs/cmd_vel.hpp>
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
@@ -76,10 +76,10 @@ public:
 	~Controller() {}
 private:
 
-	bool start(wsbs::start::Request &req, wsbs::start::Response &res);
-	bool stop(wsbs::stop::Request &req, wsbs::stop::Response &res);
-	bool selectTargetId(wsbs::select_target_id::Request &req, wsbs::select_target_id::Response &res);
-	bool selectMode(wsbs::select_mode::Request &req, wsbs::select_mode::Response &res);
+	bool start(teresa_wsbs::start::Request &req, teresa_wsbs::start::Response &res);
+	bool stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response &res);
+	bool selectTargetId(teresa_wsbs::select_target_id::Request &req, teresa_wsbs::select_target_id::Response &res);
+	bool selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs::select_mode::Response &res);
 
 	void odomReceived(const nav_msgs::Odometry::ConstPtr& odom);
 	void laserReceived(const sensor_msgs::LaserScan::ConstPtr& laser);
@@ -345,7 +345,7 @@ void Controller::stopRobot()
 
 
 
-bool Controller::start(wsbs::start::Request &req, wsbs::start::Response &res) 
+bool Controller::start(teresa_wsbs::start::Request &req, teresa_wsbs::start::Response &res) 
 {
 	ROS_INFO("START received");
 	if (state != WAITING_FOR_START && state != FINISHED && state != ABORTED) {
@@ -361,7 +361,7 @@ bool Controller::start(wsbs::start::Request &req, wsbs::start::Response &res)
 }
 
 
-bool Controller::stop(wsbs::stop::Request &req, wsbs::stop::Response &res)
+bool Controller::stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response &res)
 {
 	ROS_INFO("STOP received");
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
@@ -374,7 +374,7 @@ bool Controller::stop(wsbs::stop::Request &req, wsbs::stop::Response &res)
 	return true;
 }
 
-bool Controller::selectTargetId(wsbs::select_target_id::Request &req, wsbs::select_target_id::Response &res)
+bool Controller::selectTargetId(teresa_wsbs::select_target_id::Request &req, teresa_wsbs::select_target_id::Response &res)
 {
 	ROS_INFO("SELECT_TARGET_ID received");
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
@@ -388,7 +388,7 @@ bool Controller::selectTargetId(wsbs::select_target_id::Request &req, wsbs::sele
 	return true;
 }
 
-bool Controller::selectMode(wsbs::select_mode::Request &req, wsbs::select_mode::Response &res)
+bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs::select_mode::Response &res)
 {
 	ROS_INFO("SELECT_MODE received");
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
