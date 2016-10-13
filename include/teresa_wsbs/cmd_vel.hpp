@@ -43,7 +43,7 @@ CmdVel::CmdVel()
 {
 	static const std::vector<double> ang_vels = {-0.8, -0.75, -0.7, -0.65, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0,
 							0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8};
-	static const std::vector<double> lin_vels = {-0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
+	static const std::vector<double> lin_vels = {-0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5};
 	
 	full_markers.markers.resize(ang_vels.size() * lin_vels.size());
 	markers.markers.resize(ang_vels.size() * lin_vels.size());
@@ -171,15 +171,7 @@ bool CmdVel::compute(double dt)
 			continue;
 		}
 		
-		/*
-		if (fabs(robot_lin_vel) < 0.01 && fabs(robot_ang_vel)<0.01) {
-			if (fabs(angVel)>0 && fabs(angVel)<0.6 && fabs(linVel)<0.15) {
-				angVel = 0.6;
-			} else if (fabs(linVel)>0 && fabs(linVel)<0.15 && fabs(angVel)<0.6) {
-				linVel = 0.15;
-			} 
-		}
-		*/
+		
 		if (FORCES.checkCollision(linVel, angVel,distance,time)) {
 			unsigned size = std::min(30u,(unsigned)std::round(time * 10.0)); 	
 			markers.markers[i].points.assign(full_markers.markers[i].points.begin(),full_markers.markers[i].points.begin()+size);
