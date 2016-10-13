@@ -162,7 +162,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("laser_id",laser_id,"/scan360");
 	pn.param<std::string>("xtion_id",xtion_id,"/depthcamscan_node/scanXtion");
-	pn.param<std::string>("people_id",people_id,"/people/navigation");
+	pn.param<std::string>("people_id",people_id,"/people/navigation/confirmed_by_com");
 	pn.param<std::string>("cmd_vel_id",cmd_vel_id,"/cmd_vel");
 	
 	pn.param<double>("robot_radius",FORCES.getParams().robotRadius,0.35);
@@ -268,7 +268,7 @@ void Controller::checkEndingCondition(bool finishing)
 		setState(FINISHED);
 		return;
 	}
-
+	
 	if (state == RUNNING && (currentGoal - FORCES.getData().goal).norm()<0.01 &&
 		goal_timeout.check(ros::Time::now())) {
 			setState(ABORTED);
@@ -276,6 +276,7 @@ void Controller::checkEndingCondition(bool finishing)
 		currentGoal = FORCES.getData().goal;
 		goal_timeout.setTime(ros::Time::now());
 	}
+	
 }
 
 void Controller::publishStatus()
@@ -448,6 +449,9 @@ void Controller::setState(const State& state)
 	Controller::state = state;
 	if (state == TARGET_LOST) {
 		target_lost_timeout.setTime(ros::Time::now());
+	}
+	if (state == RUNNING) {
+		goal_timeout.setTime(ros::Time::now());
 	}
 }
 

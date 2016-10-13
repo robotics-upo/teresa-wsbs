@@ -24,9 +24,7 @@
 	<!-- Run the map server -->
 	<node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/$(arg scenario)/maps/$(arg scenario).yaml" />
 
-	<!-- People localisation -->
-	<include file="$(find uva_launchers)/launch/combined_tracking.launch"/>
-
+	
 
 	<!--- amcl -->
 	<node pkg="amcl" type="amcl" name="amcl" args="scan:=/scan360">
