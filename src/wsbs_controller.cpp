@@ -162,7 +162,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("laser_id",laser_id,"/scan360");
 	pn.param<std::string>("xtion_id",xtion_id,"/depthcamscan_node/scanXtion");
-	pn.param<std::string>("people_id",people_id,"/people/navigation/confirmed_by_com");
+	pn.param<std::string>("people_id",people_id,"/people/navigation");
 	pn.param<std::string>("cmd_vel_id",cmd_vel_id,"/cmd_vel");
 	
 	pn.param<double>("robot_radius",FORCES.getParams().robotRadius,0.35);
