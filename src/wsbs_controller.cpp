@@ -143,6 +143,8 @@ private:
 
 	int number_of_leds;
 
+	unsigned ledLoopCounter;
+
 	utils::Vector2d currentGoal;
 };
 
@@ -150,7 +152,8 @@ private:
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 :  state(WAITING_FOR_START),
    controller_mode(RIGHT),
-   is_finishing(false)
+   is_finishing(false),
+   ledLoopCounter(0)
 {
 
 	double odom_timeout_threshold;
@@ -258,7 +261,11 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishGoal();
 			publishTrajectories();
 			if (state == RUNNING) {
-				setLeds();
+				ledLoopCounter++;
+				if (ledLoopCounter==10) {
+					setLeds();
+					ledLoopCounter=0;
+				}
 			}
 		}
 		publishStatus();
@@ -272,7 +279,9 @@ void Controller::setLeds()
 {
 	if (!use_leds) {
 		return;
-	}	
+	}
+
+	
 	teresa_driver::Teresa_leds leds;
 	leds.request.rgb_values.resize(number_of_leds*3);
 	if (state == RUNNING) {
