@@ -42,13 +42,13 @@ inline
 CmdVel::CmdVel()
 {
 
-	/*
+	
 	static const std::vector<double> ang_vels = {-0.8, -0.75, -0.7, -0.65, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8};
 	static const std::vector<double> lin_vels = {-0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5};
-	*/
+	
 
-	static const std::vector<double> ang_vels = {-1.5, -1.2, -0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9, 1.2, 1.5};
-	static const std::vector<double> lin_vels = {-0.6, -0.5, -0.4, -0.3, -0.2, -0.16, 0, 0.16, 0.2, 0.3, 0.4, 0.5, 0.6};
+	//static const std::vector<double> ang_vels = {-1.5, -1.2, -0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9, 1.2, 1.5};
+	//static const std::vector<double> lin_vels = {-0.6, -0.5, -0.4, -0.3, -0.2, -0.16, 0, 0.16, 0.2, 0.3, 0.4, 0.5, 0.6};
 
 	full_markers.markers.resize(ang_vels.size() * lin_vels.size());
 	markers.markers.resize(ang_vels.size() * lin_vels.size());
