@@ -29,6 +29,7 @@
 #include <teresa_wsbs/select_target_id.h>
 #include <teresa_wsbs/forces.hpp>
 #include <teresa_wsbs/cmd_vel.hpp>
+#include <teresa_driver/Teresa_leds.h>
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
@@ -93,6 +94,9 @@ private:
 	void setState(const State& state);
 	static const char *getStateId(const State& state);
 
+	void setLeds();
+	
+
 	static std_msgs::ColorRGBA getColor(double r, double g, double b, double a);
 
 	void publishForces();
@@ -129,9 +133,15 @@ private:
 	ros::Publisher trajectories_pub;
 	ros::Publisher status_pub;
 
+	ros::ServiceClient leds_client;
+
 	geometry_msgs::Twist zeroTwist;
 
 	bool is_finishing;
+
+	bool use_leds;
+
+	int number_of_leds;
 
 	utils::Vector2d currentGoal;
 };
@@ -175,6 +185,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
 	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,20);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
+	pn.param<bool>("use_leds",use_leds,true);
+	pn.param<int>("number_of_leds",number_of_leds,60);
 
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_planner",FORCES.getParams().heuristicPlanner, true);
@@ -191,6 +203,10 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	if (!xtion_id.empty()) {
 		xtion_sub = n.subscribe<sensor_msgs::LaserScan>(xtion_id, 1, &Controller::xtionReceived,this);
 	}
+	if (use_leds) {
+		leds_client =  n.serviceClient<teresa_driver::Teresa_leds>("teresa_leds_client");
+	}
+
 	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
 	markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
@@ -227,6 +243,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_timeout.setTime(ros::Time::now());
 
 	
+
 	ros::Rate r(freq);
 	bool finishing;
 	while(n.ok()) {
@@ -240,11 +257,62 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishPath();
 			publishGoal();
 			publishTrajectories();
+			if (state == RUNNING) {
+				setLeds();
+			}
 		}
 		publishStatus();
 		r.sleep();	
 		ros::spinOnce();	
 	}
+}
+
+
+void Controller::setLeds()
+{
+	if (!use_leds) {
+		return;
+	}	
+	teresa_driver::Teresa_leds leds;
+	leds.request.rgb_values.resize(number_of_leds*3);
+	if (state == RUNNING) {
+		for (int i = 0; i< number_of_leds; i++) {
+			leds.request.rgb_values[i*3] = 0;
+			leds.request.rgb_values[i*3+1] = 0;
+			leds.request.rgb_values[i*3+2] = 255;		
+		}
+		utils::Angle alpha = FORCES.getData().robot.position.angleTo(FORCES.getData().target.position);
+		alpha -= FORCES.getData().robot.yaw;
+		double alpha_value = alpha.toDegree(utils::Angle::PositiveOnlyRange);
+		int index = (int)std::max(number_of_leds-1,(int)std::round( (alpha_value * (double)number_of_leds)/360.0));
+		for (int i = index-2; i< index+3; i++) {
+			int j = i;
+			if (j <0) {
+				j += number_of_leds;
+			}
+			j %= number_of_leds;
+			leds.request.rgb_values[j*3] = 255;
+			leds.request.rgb_values[j*3+1] = 255;
+			leds.request.rgb_values[j*3+2] = 255;
+		}		
+		
+	} else {
+		int s = (int)state;
+		for (int i = 0; i< number_of_leds; i++) {
+			if (i%(s+1) == 0) {
+				leds.request.rgb_values[i*3] = 0;
+				leds.request.rgb_values[i*3+1] = 0;
+				leds.request.rgb_values[i*3+2] = 255;		
+			} else {
+				leds.request.rgb_values[i*3] = 255;
+				leds.request.rgb_values[i*3+1] = 255;
+				leds.request.rgb_values[i*3+2] = 255;	
+			}
+		}
+	}
+	if (!leds_client.call(leds) || !leds.response.success) {
+		ROS_ERROR("Error trying to set robot leds");
+	}	
 }
 
 
@@ -444,9 +512,10 @@ void Controller::setState(const State& state)
 		publishPath();
 		publishGoal();
 		publishTrajectories();
-	}	
+	}
 	ROS_INFO("State is %s",getStateId(state));
 	Controller::state = state;
+	setLeds();	
 	if (state == TARGET_LOST) {
 		target_lost_timeout.setTime(ros::Time::now());
 	}
