@@ -1,0 +1,7 @@
+<!-- -->
+<launch>
+
+
+<node pkg="rosbag" type="record" name="record_1" args="/tf /imu/data /odom /cmd_vel /cmd_vel_joy /cmd_vel_fsm /scan360 /people/navigation /hri_control_mode /spencer/perception/tracked_persons /wsbs/status /wsbs/markers/robot_forces /wsbs/markers/trajectories /wsbs/markers/target_path /wsbs/markers/local_goal /depthcamscan_node/scanXtion -o /home/teresa/data/wsbs.bag" />
+  
+</launch>
