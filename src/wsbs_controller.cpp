@@ -207,7 +207,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 		xtion_sub = n.subscribe<sensor_msgs::LaserScan>(xtion_id, 1, &Controller::xtionReceived,this);
 	}
 	if (use_leds) {
-		leds_client =  pn.serviceClient<teresa_driver::Teresa_leds>("teresa_leds");
+		leds_client =  n.serviceClient<teresa_driver::Teresa_leds>("teresa_leds");
 	}
 
 	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
