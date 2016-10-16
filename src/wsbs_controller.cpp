@@ -143,8 +143,6 @@ private:
 
 	int number_of_leds;
 
-	unsigned ledLoopCounter;
-
 	utils::Vector2d currentGoal;
 };
 
@@ -152,8 +150,7 @@ private:
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 :  state(WAITING_FOR_START),
    controller_mode(RIGHT),
-   is_finishing(false),
-   ledLoopCounter(0)
+   is_finishing(false)
 {
 
 	double odom_timeout_threshold;
@@ -261,11 +258,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishGoal();
 			publishTrajectories();
 			if (state == RUNNING) {
-				ledLoopCounter++;
-				if (ledLoopCounter==10) {
-					setLeds();
-					ledLoopCounter=0;
-				}
+				setLeds();
 			}
 		}
 		publishStatus();
@@ -293,7 +286,7 @@ void Controller::setLeds()
 		utils::Angle alpha = FORCES.getData().robot.position.angleTo(FORCES.getData().target.position);
 		alpha -= FORCES.getData().robot.yaw;
 		double alpha_value = alpha.toDegree(utils::Angle::PositiveOnlyRange);
-		int index = (int)std::max(number_of_leds-1,(int)std::round( (alpha_value * (double)number_of_leds)/360.0));
+		int index = (int)std::min(number_of_leds-1,(int)std::round( (alpha_value * (double)number_of_leds)/360.0));
 		for (int i = index-2; i< index+3; i++) {
 			int j = i;
 			if (j <0) {
