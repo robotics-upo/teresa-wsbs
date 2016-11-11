@@ -73,7 +73,7 @@
  
 
  <!-- People localisation -->
- <!--  <include file="$(find uva_launchers)/launch/combined_tracking.launch"/>-->
+   <include file="$(find uva_launchers)/launch/combined_tracking.launch"/>
 
 
 </launch>
