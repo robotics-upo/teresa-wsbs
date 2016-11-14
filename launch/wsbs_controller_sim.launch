@@ -1,0 +1,13 @@
+<!-- -*- mode: XML -*- -->
+
+<launch>
+	
+	<node pkg="teresa_wsbs" type="wsbs_controller" name="wsbs_controller" output="screen" respawn="false">
+		<param name="xtion_id" value=""/>
+		<param name="use_leds" value="false"/>
+	</node>
+
+
+    
+
+</launch>
