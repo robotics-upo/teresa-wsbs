@@ -1,0 +1,71 @@
+#-----GENERAL PARAMS FOR UPO_NAVIGATION -------------------------
+base_global_planner: navfn/NavfnROS
+base_local_planner: simple_local_planner/PurePlannerROS
+recovery_behaviors: [{
+    name: conservative_reset, 
+    type: clear_costmap_recovery/ClearCostmapRecovery
+  }, {
+    name: aggressive_reset,
+    type: clear_costmap_recovery/ClearCostmapRecovery
+#  }, {
+#    name: rotate_recovery1,
+#    type: rotate_recovery/RotateRecovery
+#  }, {
+#    name: rotate_recovery2,
+#    type: rotate_recovery/RotateRecovery
+  }]
+planner_frequency:          0 #5 #def:0
+controller_frequency:       15.0
+planner_patience:           15.0
+controller_patience:        10.0
+conservative_reset_dist:    4.0
+recovery_behavior_enabled:  true
+clearing_rotation_allowed:  false
+shutdown_costmaps:          false
+oscillation_timeout:        0.0
+oscillation_distance:       0.5
+
+
+#------ GLOBAL PLANNER PARAMS -------------------------------------
+# http://www.ros.org/wiki/navfn
+NavfnROS:
+
+  allow_unknown:                      false
+  planner_window_x:                   0.0
+  planner_window_y:                   0.0
+  default_tolerance:                  0.05
+  visualize_potential:                true  
+  planner_costmap_publish_frequency:  1.0
+  use_dijkstra:                       false 
+  old_navfn_behavior:                 false
+
+
+
+
+#------------------------------------------------------------
+# Parameters for the PATH FOLLOWING CONTROLLER
+PurePlanner:
+
+# Robot Configuration Parameters
+  max_trans_acc:              1.0
+  max_rot_acc:                1.0
+  max_trans_vel:              0.4 
+  min_trans_vel:              0.1
+  max_rot_vel:                0.5
+  min_rot_vel:                0.1
+  min_in_place_rot_vel:       0.4
+
+# Goal Tolerance Parameters
+  yaw_goal_tolerance:         0.1
+  xy_goal_tolerance:          0.10
+  wp_tolerance:               0.5
+  
+# Forward Simulation Parameters
+  sim_time:                   0.5 
+  sim_granularity:            0.025
+  angular_sim_granularity:    0.025
+
+  controller_freq:            15.0
+
+
+  

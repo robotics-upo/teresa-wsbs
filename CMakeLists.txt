@@ -13,11 +13,12 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   upo_msgs
   tf
+  cmake_modules
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(TinyXML REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -110,8 +111,8 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES wsbs
-  CATKIN_DEPENDS nav_msgs roscpp sensor_msgs std_msgs upo_msgs tf
-  DEPENDS system_lib
+  CATKIN_DEPENDS nav_msgs roscpp sensor_msgs std_msgs upo_msgs tf 
+   DEPENDS system_lib TinyXML 
 )
 
 ###########
@@ -122,7 +123,9 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(include)
 include_directories(
+  /usr/local/include
   ${catkin_INCLUDE_DIRS}
+  ${TinyXML_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -138,12 +141,14 @@ include_directories(
 ## Declare a C++ executable
 add_executable(wsbs_controller src/wsbs_controller.cpp)
 add_executable(wsbs_analysis src/wsbs_analysis.cpp)
+add_executable(wsbs_planner src/wsbs_planner.cpp)
 
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(wsbs_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_analysis ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(wsbs_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
 ## Specify libraries to link a library or executable target against
@@ -154,6 +159,12 @@ target_link_libraries(wsbs_controller
 target_link_libraries(wsbs_analysis
    ${catkin_LIBRARIES}
 )
+
+target_link_libraries(wsbs_planner
+   ${catkin_LIBRARIES}
+   ${TinyXML_LIBRARIES}
+)
+
 
 
 #############

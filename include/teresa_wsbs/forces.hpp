@@ -37,7 +37,7 @@
 #include <list>
 #include <limits>
 #include <algorithm>
-#include "vector2d.hpp"
+#include <lightsfm/vector2d.hpp>
 
 namespace wsbs
 {

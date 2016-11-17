@@ -1,76 +1,172 @@
 #ifndef _MODEL_HPP_
 #define _MODEL_HPP_
 
+#include <tf/transform_listener.h>
 #include <lightpomcp/MonteCarloSimulator.hpp>
 #include <lightpomcp/Random.hpp>
 #include <boost/functional/hash.hpp>
-#include "forces.hpp"
+#include <lightsfm/sfm.hpp>
+#include <lightsfm/map.hpp>
 
 namespace wsbs
 {
 
+namespace model
+{
 
 
 struct State
 {
-	Agent robot;
-	Agent target;
+	utils::Vector2d robot_pos;
+	utils::Vector2d robot_vel;
+	utils::Vector2d target_pos;
+	utils::Vector2d target_vel;
 	utils::Vector2d goal;
-
+	
 	bool operator == (const State& other) const
 	{
-		return robot == other.robot && target == other.target && goal == other.goal;
+		return robot_pos == other.robot_pos && 
+			robot_vel == other.robot_vel && 
+			target_pos == other.target_pos && 
+			target_vel == other.target_vel && 
+			goal == other.goal;
 	}
 };
 
-
 struct Observation
 {
+	int robot_pos_grid_x;
+	int robot_pos_grid_y;
+	int target_pos_grid_x;
+	int target_pos_grid_y;
+
+	bool operator == (const Observation& other) const
+	{
+		return robot_pos_grid_x == other.robot_pos_grid_x &&
+			robot_pos_grid_y == other.robot_pos_grid_y &&
+			target_pos_grid_x == other.target_pos_grid_x &&
+			target_pos_grid_y == other.target_pos_grid_y;
+	}
 	
 };
 
-class Simulator : public pomcp::Simulator<State,Observation,ControllerMode>
+
+}
+}
+
+namespace std
+{
+
+
+template<>
+struct hash<wsbs::model::State>
+{
+	size_t operator()(const wsbs::model::State& state) const
+	{
+		using boost::hash_value;
+      		using boost::hash_combine;
+		std::size_t seed = 0;		
+		hash_combine(seed,hash_value(state.robot_pos[0]));
+		hash_combine(seed,hash_value(state.robot_pos[1]));
+		hash_combine(seed,hash_value(state.robot_vel[0]));
+		hash_combine(seed,hash_value(state.robot_vel[1]));
+		hash_combine(seed,hash_value(state.target_pos[0]));
+		hash_combine(seed,hash_value(state.target_pos[1]));
+		hash_combine(seed,hash_value(state.target_vel[0]));
+		hash_combine(seed,hash_value(state.target_vel[1]));
+		hash_combine(seed,hash_value(state.goal[0]));
+		hash_combine(seed,hash_value(state.goal[1]));
+		return seed;
+	}
+
+};
+
+template<>
+struct hash<wsbs::model::Observation>
+{
+	size_t operator()(const wsbs::model::Observation& observation) const
+	{
+		using boost::hash_value;
+      		using boost::hash_combine;
+		std::size_t seed = 0;		
+		hash_combine(seed,hash_value(robot_pos_grid_x));
+		hash_combine(seed,hash_value(robot_pos_grid_y));
+		hash_combine(seed,hash_value(target_pos_grid_x));
+		hash_combine(seed,hash_value(target_pos_grid_y));
+		return seed;
+	}
+
+};
+
+
+}
+
+
+
+namespace wsbs
+{
+namespace model
+{
+
+enum Action {
+	LEFT		= 0,
+	RIGHT		= 1,
+	BEHIND		= 2,
+	FOLLOW_PATH	= 3,
+	WAIT		= 4
+};
+
+class PathProvider
 {
 public:
+	PathProvider() {}
+	virtual ~PathProvider() {}
 
-	std::vector<utils::Vector2d> goals;
-	Agent robot;
-	Agent target;
+	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
+	{
+		nextPoint = goal;
+		return nextPoint;
+	}	
+};
 
-	Simulator(double discount);
-	virtual ~Simulator() {}
+
+class Simulator : public pomcp::Simulator<State,Observation,Action>
+{
+public:
+	
+	utils::Vector2d robot_pos;
+	utils::Vector2d robot_vel;
+	utils::Vector2d target_pos;
+	utils::Vector2d target_vel;
+
+	Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider);
 
 	virtual double getDiscount() const  {return discount;}
 
-	virtual State& sampleInitialState(State& state) const;
-
-	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward) const {return true;}
-
+	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward) const; 
 	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const;
 
+	virtual State& sampleInitialState(State& state) const;
 	virtual unsigned getNumActions() const {return 5;}
-
-	virtual const ControllerMode& getAction(unsigned actionIndex) const {return actions[actionIndex];}
-
-	virtual bool allActionsAreValid(const State& state) const {return false;}
-
+	virtual const Action& getAction(unsigned actionIndex) const {return actions[actionIndex];}
+	virtual bool allActionsAreValid(const State& state) const {return true;}
 	virtual bool isValidAction(const State& state, unsigned actionIndex) const {return true;}
 
-	virtual void cleanup() {}
-
-
 private:
-	static utils::Vector2d Simulator::getGoal(const State& state, const ControllerMode& action);
+	void getObservation(const State& state, Observation& observation) const;
 
 	double discount;
-	ControllerMode actions[5];
-	
-
+	double gridCellSize;
+	std::vector<utils::Vector2d> goals;	
+	PathProvider& pathProvider;
 };
 
 inline
-Simulator::Simulator(double discount)
-: discount(discount)
+Simulator::Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider)
+: discount(discount),
+  gridCellSize(gridCellSize),
+  goals(goals),
+  pathProvider(pathProvider)
 {
 	actions[0] = LEFT;
 	actions[1] = RIGHT;
@@ -79,14 +175,16 @@ Simulator::Simulator(double discount)
 	actions[4] = WAIT;
 }
 
-
 inline
 State& Simulator::sampleInitialState(State& state) const
 {
-	state.robot = robot;
-	state.target = target;
+	state.robot_pos = robot_pos;
+	state.robot_vel = robot_vel;
+	state.target_pos = target_pos;
+	state.target_vel = target_vel;
+
 	if (goals.empty()) {
-		state.goal = target.position;
+		state.goal = target_pos;
 	} else {
 		state.goal = goals[utils::RANDOM(goals.size())];
 	}
@@ -95,64 +193,35 @@ State& Simulator::sampleInitialState(State& state) const
 
 
 inline
-utils::Vector2d Simulator::getGoal(const State& state, const ControllerMode& action)
-{
-	if (action == 
-
-	if (action == LEFT) {
-
-
-	} else if (action == RIGHT) {
-
-	} 
-
-
-
-}
-
-inline
 bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const
 {
+	// TODO
+
+	return true;
+}
 
 
+inline
+void Simulator::getObservation(const State& state, Observation& observation) const
+{
+	observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
+	observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
+	observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
+	observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
+}
 
+
+inline
+bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward) const
+{
+	bool r=simulate(state,actionIndex,nextState,reward);
+	getObservation(nextState,observation); 
+	return r;
 }
 
 
 
-
-
-
 }
-
-namespace std
-{
-
-template <>
-struct hash<wsbs::State>
-{
-	size_t operator()( const wsbs::State& state ) const
-	{
-		using boost::hash_value;
-		using boost::hash_combine;
-
-		std::size_t seed = 0;
-
-		hash_combine(seed,hash_value(state.robot.position.getX()));
-		hash_combine(seed,hash_value(state.robot.position.getY()));
-		hash_combine(seed,hash_value(state.robot.velocity.getX()));
-		hash_combine(seed,hash_value(state.robot.velocity.getY()));
-		
-		hash_combine(seed,hash_value(state.target.position.getX()));
-		hash_combine(seed,hash_value(state.target.position.getY()));
-		hash_combine(seed,hash_value(state.target.velocity.getX()));
-		hash_combine(seed,hash_value(state.target.velocity.getY()));
-		
-		hash_combine(seed,hash_value(state.goal.getX()));
-		hash_combine(seed,hash_value(state.goal.getY()));
-		return seed;
-	}
-};
 
 }
 

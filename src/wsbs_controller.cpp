@@ -9,9 +9,8 @@
 /**                                                                    */
 /** Authors:                                                           */
 /** Ignacio Perez-Hurtado (maintainer)                                 */
-/** Noe Perez                                                          */
-/** Fernando Caballero                                                 */
 /** Jesus Capitan                                                      */
+/** Fernando Caballero                                                 */
 /** Luis Merino                                                        */
 /**                                                                    */   
 /** This software may be modified and distributed under the terms      */
@@ -34,6 +33,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
+
 
 namespace wsbs
 {
@@ -185,7 +185,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
 	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,20);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
-	pn.param<bool>("use_leds",use_leds,true);
+	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
 
 	pn.param<double>("freq",freq,15);
@@ -243,7 +243,6 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_timeout.setTime(ros::Time::now());
 
 	
-
 	ros::Rate r(freq);
 	bool finishing;
 	while(n.ok()) {
