@@ -27,15 +27,32 @@
 #include <lightsfm/sfm.hpp>
 #include <lightsfm/rosmap.hpp>
 #include <vector>
+#include <map>
 
 namespace wsbs
 {
 
-class Planner
+struct PathIndex
+{
+	unsigned x; // Cell x
+	unsigned y; // Cell y
+	unsigned goal_index; 
+
+	bool operator<(const PathIndex& other) const
+	{
+		return x < other.x ||
+			(x==other.x && y< other.y) ||
+			(x==other.x && y==other.y && goal_index<other.goal_index);
+	}
+};
+
+
+
+class Paths
 {
 public:
-	Planner(ros::NodeHandle& n, ros::NodeHandle& pn);
-	~Planner() {}
+	Paths(ros::NodeHandle& n, ros::NodeHandle& pn);
+	~Paths() {}
 
 private:
 	bool makePlan(const utils::Vector2d& start, const utils::Vector2d& goal, double tolerance, std::vector<utils::Vector2d>& plan);
@@ -47,11 +64,14 @@ private:
 
 
 inline
-Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
+Paths::Paths(ros::NodeHandle& n, ros::NodeHandle& pn)
 {
 	std::string goals_file;
+	double grid_size;
 
 	pn.param<std::string>("goals_file",goals_file,"");
+	pn.param<double>("grid_size",grid_size,0.5);
+
 
 	TiXmlDocument xml_doc(goals_file);
 	if (xml_doc.LoadFile()) {
@@ -64,25 +84,50 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 		ROS_FATAL("Cannot read goals");
 		ROS_BREAK();
 	}
+	
 
 	plan_client = n.serviceClient<nav_msgs::GetPlan>("/move_base/make_plan");
 	utils::Vector2d start;
-	start.set(6,26);	
-	std::vector<utils::Vector2d> plan;
-	ros::Rate r(1.0);
-	while (!makePlan(start,goals[0].center,1,plan)) {
-		ROS_ERROR("Error getting plan");
-		r.sleep();	
-
+	sfm::RosMap::Pixel pixel;
+	PathIndex index;
+	index.x=0;
+	index.y=0;
+	index.goal_index=0;
+	unsigned counter=0;
+	std::map<PathIndex,std::vector<utils::Vector2d> > paths;
+	unsigned step = (unsigned)std::round(grid_size/sfm::MAP.getInfo().resolution);
+	for (unsigned i=0; i<sfm::MAP.getInfo().width; i+=step) {
+		index.y=0;
+		for (unsigned j=0; j< sfm::MAP.getInfo().height; j+=step) {
+			pixel.x = (int)i;
+			pixel.y = (int)j;
+			sfm::MAP.pixelToMap(pixel,start);
+			if (sfm::MAP.isObstacle(start)) {
+				continue;
+			}
+			for (unsigned k=0; k< goals.size(); k++) {
+				index.goal_index=k;				
+				makePlan(start,goals[k].center,grid_size,paths[index]);
+				if (paths[index].size()>0) {				
+					std::cout<<"--- "<<(++counter)<<" ---"<<std::endl;				
+					std::cout<<"START: "<<start<<std::endl;
+					std::cout<<"GOAL: "<<goals[k].center<<std::endl;
+					std::cout<<"X: "<<index.x<<std::endl;
+					std::cout<<"Y: "<<index.y<<std::endl;
+					std::cout<<"K: "<<index.goal_index<<std::endl;
+					std::cout<<"PATH SIZE: "<<paths[index].size()<<std::endl;
+				}
+			}
+			index.y++;
+		}
+		index.x++;
 	}
-	for (unsigned i=0;i<plan.size();i++) {
-		std::cout<<plan[i]<<std::endl;
-	}
+	
 
 }
 
 inline
-bool Planner::makePlan(const utils::Vector2d& start, const utils::Vector2d& goal, double tolerance, std::vector<utils::Vector2d>& plan)
+bool Paths::makePlan(const utils::Vector2d& start, const utils::Vector2d& goal, double tolerance, std::vector<utils::Vector2d>& plan)
 {
 	nav_msgs::GetPlan query;
 
@@ -99,12 +144,9 @@ bool Planner::makePlan(const utils::Vector2d& start, const utils::Vector2d& goal
 	query.request.tolerance = tolerance;
 	bool success=plan_client.call(query);
 	if (success) {
-		std::cout<<"SIZE: "<<query.response.plan.poses.size()<<std::endl;
 		plan.clear();
 		for (unsigned i = 0; i< query.response.plan.poses.size(); i++) {
-			utils::Vector2d point;
-			std::cout<<query.response.plan.poses[i].header.frame_id<<std::endl;
-			point.set(query.response.plan.poses[i].pose.position.x,query.response.plan.poses[i].pose.position.y);
+			utils::Vector2d point(query.response.plan.poses[i].pose.position.x,query.response.plan.poses[i].pose.position.y);
 			plan.push_back(point);
 		}
 	}
@@ -114,7 +156,7 @@ bool Planner::makePlan(const utils::Vector2d& start, const utils::Vector2d& goal
 
 
 inline
-void Planner::readGoals(TiXmlNode *pParent)
+void Paths::readGoals(TiXmlNode *pParent)
 {
 	if ( !pParent ) return;
 
@@ -153,6 +195,6 @@ int main(int argc, char** argv)
 	ros::init(argc, argv, "wsbs_controller");
 	ros::NodeHandle n;
 	ros::NodeHandle pn("~");
-	wsbs::Planner node(n,pn);
+	wsbs::Paths node(n,pn);
 	return 0;
 }

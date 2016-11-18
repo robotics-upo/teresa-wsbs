@@ -142,13 +142,15 @@ include_directories(
 add_executable(wsbs_controller src/wsbs_controller.cpp)
 add_executable(wsbs_analysis src/wsbs_analysis.cpp)
 add_executable(wsbs_planner src/wsbs_planner.cpp)
-
+add_executable(wsbs_paths src/wsbs_paths.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(wsbs_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_analysis ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(wsbs_paths ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 
 
 ## Specify libraries to link a library or executable target against
@@ -164,6 +166,12 @@ target_link_libraries(wsbs_planner
    ${catkin_LIBRARIES}
    ${TinyXML_LIBRARIES}
 )
+
+target_link_libraries(wsbs_paths
+   ${catkin_LIBRARIES}
+   ${TinyXML_LIBRARIES}
+)
+
 
 
 

@@ -17,7 +17,8 @@
 		<param name="oscillation_distance" type="double" value="0.5" /> <!--default=0.5-->	
 	</node>
 
-	<node pkg="teresa_wsbs" type="wsbs_planner" name="wsbs_planner" output="screen" respawn="false">
+
+	<node pkg="teresa_wsbs" type="wsbs_paths" name="wsbs_paths" output="screen" respawn="false">
 		<param name="goals_file" value="$(find teresa_wsbs)maps/corridor_goals.xml"/>
 	</node>
    
