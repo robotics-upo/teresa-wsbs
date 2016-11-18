@@ -8,18 +8,17 @@
 
   <!--launch the xtion cameras-->
   <include file="$(find teresa_common)/launch/upo_lab/teresa_robot_upo/xtionNav.launch" />
-  <include file="$(find teresa_common)/launch/upo_lab/teresa_robot_upo/xtionPeople.launch" />
+  <!--<include file="$(find teresa_common)/launch/upo_lab/teresa_robot_upo/xtionPeople.launch" />-->
 
   <!--laser generated from the navigation xtion-->
    <include file="$(find teresa_common)/launch/upo_lab/teresa_robot_upo/depthcamscan.launch"/>
 
   <!--transform people receive to UPO messages format-->
-  <node pkg="spencer_to_upo_people" type="spencer_to_upo_people" name="spencer_to_upo_people" output="screen" >
+  <!--<node pkg="spencer_to_upo_people" type="spencer_to_upo_people" name="spencer_to_upo_people" output="screen" >
 	<param name="publish_markers" type="bool" value="false" />
         <param name="use_kf" type="bool" value="false" />
-       <!-- <param name="spencer_people_id" type="str" value="/spencer/perception/tracked_persons_confirmed_by_face_recog_or_com" />-->
-	<param name="spencer_people_id" type="str" value="/spencer/perception/tracked_persons" />
-  </node>
+        <param name="spencer_people_id" type="str" value="/spencer/perception/tracked_persons" />
+  </node>-->
 
 
 
@@ -74,6 +73,6 @@
 
  <!-- People localisation -->
  <!--  <include file="$(find uva_launchers)/launch/combined_tracking.launch"/>-->
-
+<include file="$(find people_laser_tracker)/launch/people_tracker.launch"/>
 
 </launch>

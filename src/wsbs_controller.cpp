@@ -242,14 +242,16 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_timeout.setTimeout(goal_timeout_threshold);
 	goal_timeout.setTime(ros::Time::now());
 
-	
+
 	ros::Rate r(freq);
+	//double dt = 1/freq;
 	bool finishing;
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
 			FORCES.compute(controller_mode);
 			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
+			//finishing = CMD_VEL.compute(dt);
 			cmd_vel_pub.publish(CMD_VEL.getCommand());
 			checkEndingCondition(finishing);
 			publishForces();
