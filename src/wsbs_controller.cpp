@@ -34,13 +34,8 @@
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
 
-
 namespace wsbs
 {
-
-
-
-
 
 class Controller
 {
