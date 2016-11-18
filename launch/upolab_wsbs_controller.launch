@@ -7,8 +7,6 @@
 		<param name="cmd_vel_id" value="cmd_vel"/>
 		<param name="use_leds" value="false"/>
 	</node>
-
-
-    
+   
 
 </launch>

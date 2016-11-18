@@ -147,16 +147,17 @@ public:
 	struct Parameters
 	{
 		Parameters()
-		: forceFactorDesired(1.0),
-		  forceFactorObstacle(10),
+		: forceFactorDesired(1.0), 
+		  forceFactorObstacle(10), 
 		  forceSigmaObstacle(0.2),
 		  forceFactorSocial(2.1),  
 		  forceFactorGroupGaze(3.0),
 		  forceFactorGroupCoherence(2.0),
 		  forceFactorGroupRepulsion(1.0),
 		  robotRadius(0.4),
+		  robotMass(25),
 		  personRadius(0.4),
-		  robotMaxLinearVelocity(0.3),
+		  robotMaxLinearVelocity(0.5), // 0.3
 		  robotMaxAngularVelocity(0.8),
 		  robotMaxLinearAcceleration(1.0), 
 		  robotMaxAngularAcceleration(1.0), 
@@ -183,6 +184,7 @@ public:
 		double forceFactorGroupCoherence;
 		double forceFactorGroupRepulsion;
 		double robotRadius;
+		double robotMass;
 		double personRadius;
 		double robotMaxLinearVelocity;
 		double robotMaxAngularVelocity;
