@@ -154,10 +154,9 @@ public:
 		  forceFactorGroupGaze(3.0),
 		  forceFactorGroupCoherence(2.0),
 		  forceFactorGroupRepulsion(1.0),
-		  robotRadius(0.4),
-		  robotMass(25),
-		  personRadius(0.4),
-		  robotMaxLinearVelocity(0.5), // 0.3
+		  robotRadius(0.35),
+		  personRadius(0.35),
+		  robotMaxLinearVelocity(0.6), // 0.5 0.3
 		  robotMaxAngularVelocity(0.8),
 		  robotMaxLinearAcceleration(1.0), 
 		  robotMaxAngularAcceleration(1.0), 
@@ -184,7 +183,6 @@ public:
 		double forceFactorGroupCoherence;
 		double forceFactorGroupRepulsion;
 		double robotRadius;
-		double robotMass;
 		double personRadius;
 		double robotMaxLinearVelocity;
 		double robotMaxAngularVelocity;

@@ -39,13 +39,15 @@ struct Observation
 	int robot_pos_grid_y;
 	int target_pos_grid_x;
 	int target_pos_grid_y;
+	bool target_hidden;
 
 	bool operator == (const Observation& other) const
 	{
 		return robot_pos_grid_x == other.robot_pos_grid_x &&
 			robot_pos_grid_y == other.robot_pos_grid_y &&
 			target_pos_grid_x == other.target_pos_grid_x &&
-			target_pos_grid_y == other.target_pos_grid_y;
+			target_pos_grid_y == other.target_pos_grid_y &&
+			target_hiddent == other.target.hidden;
 	}
 	
 };
@@ -93,6 +95,7 @@ struct hash<wsbs::model::Observation>
 		hash_combine(seed,hash_value(robot_pos_grid_y));
 		hash_combine(seed,hash_value(target_pos_grid_x));
 		hash_combine(seed,hash_value(target_pos_grid_y));
+		hash_combine(seed,hash_value(target_hidden));
 		return seed;
 	}
 
@@ -208,6 +211,7 @@ void Simulator::getObservation(const State& state, Observation& observation) con
 	observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
 	observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
 	observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
+	// TODO: is target hidden?
 }
 
 
