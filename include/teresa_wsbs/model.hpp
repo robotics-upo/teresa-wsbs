@@ -101,10 +101,7 @@ struct hash<wsbs::model::Observation>
 
 };
 
-
 }
-
-
 
 namespace wsbs
 {
@@ -143,7 +140,7 @@ public:
 	utils::Vector2d target_vel;
 	
 
-	Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider);
+	Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider,double trackingRange, double goalRadius, double runningTime);
 
 	virtual double getDiscount() const  {return discount;}
 
@@ -158,20 +155,36 @@ public:
 
 private:
 	void getObservation(const State& state, Observation& observation) const;
+	double getReward(const State& state,double targetForce) const;
 
 	double discount;
 	double gridCellSize;
 	std::vector<utils::Vector2d> goals;	
 	PathProvider& pathProvider;
 	std::vector<Action> actions;
+	double trackingRange;
+	double goalRadius;
+	double runningTime;
+	double naiveGoalTime;
+	double alphaFactor;
+	double betaFactor;
+	double gammaFactor; 
+
 };
 
 inline
-Simulator::Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider)
+Simulator::Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider, double trackingRange, double goalRadius, double runningTime)
 : discount(discount),
   gridCellSize(gridCellSize),
   goals(goals),
-  pathProvider(pathProvider)
+  pathProvider(pathProvider),
+  trackingRange(trackingRange),
+  goalRadius(goalRadius),
+  runningTime(runningTime),
+  naiveGoalTime(1.0),
+  alphaFactor(1.0), 
+  betaFactor(-1.0),
+  gammaFactor(-1.0)
 {
 	actions.resize(5);
 	actions[0] = LEFT;
@@ -201,9 +214,66 @@ State& Simulator::sampleInitialState(State& state) const
 inline
 bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const
 {
-	// TODO
+	std::vector<sfm::Agent> agents;
+	agents.resize(2);
+	agents[0].position = state.robot_pos;
+	agents[0].velocity = state.robot_vel;
+	agents[0].yaw = state.robot_vel.angle();	
 
-	return true;
+	const Action& action = getAction(actionIndex);
+
+	sfm::Goal robotGoal;
+	robotGoal.radius = goalRadius;
+	if (action == LEFT) {
+		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().leftNormalVector();
+	} else if (action == RIGHT) {
+		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().rightNormalVector();
+	} else if (action == BEHIND) {
+		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel - state.target_vel.normalized();
+	} else if (action == WAIT) {
+		// No goal
+	} else if (action == FOLLOW_PATH) {
+		// TODO
+	}
+	
+	if (action == LEFT || action == RIGHT || action == BEHIND) {
+		agents[0].goals.push_back(robotGoal);
+	}
+	agents[0].groupId = 0;
+
+	agents[1].position = state.target_pos;
+	agents[1].velocity = state.target_vel;
+	agents[1].yaw = state.target_vel.angle();
+	sfm::Goal targetLocalGoal;
+	targetLocalGoal.radius = goalRadius;
+	pathProvider.getNextPoint(state.target_pos,state.goal,targetLocalGoal.center);
+	agents[1].goals.push_back(targetLocalGoal);
+	agents[1].groupId = 0;
+
+	sfm::Map *map = &sfm::MAP;
+	sfm::SFM.computeForces(agents,map);
+	sfm::SFM.updatePosition(agents,runningTime);
+
+	nextState.robot_pos = agents[0].position;
+	nextState.robot_vel = agents[0].velocity;
+	nextState.target_pos = agents[1].position;
+	nextState.target_vel = agents[1].velocity;
+	nextState.goal = state.goal;
+
+	
+	reward = getReward(nextState,agents[1].forces.globalForce.norm());	
+
+	return (nextState.target_pos - nextState.goal).norm() > goalRadius;
+}
+
+inline
+double Simulator::getReward(const State& state,double targetForce) const
+{
+	sfm::Map *map = &sfm::MAP;
+	double alpha = map->getNearestObstacle(state.robot_pos).distance;
+	double beta = (state.robot_pos - state.target_pos).norm();
+	return alphaFactor*alpha + betaFactor*beta + gammaFactor*targetForce;
+	
 }
 
 
@@ -214,7 +284,11 @@ void Simulator::getObservation(const State& state, Observation& observation) con
 	observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
 	observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
 	observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
-	// TODO: is target hidden?
+	if ( (state.robot_pos - state.target_pos).norm() > trackingRange) {
+		observation.target_hidden = true;
+	} else {
+		observation.target_hidden = false;
+	}
 }
 
 
