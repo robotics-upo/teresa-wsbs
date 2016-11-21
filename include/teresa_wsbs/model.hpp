@@ -47,7 +47,7 @@ struct Observation
 			robot_pos_grid_y == other.robot_pos_grid_y &&
 			target_pos_grid_x == other.target_pos_grid_x &&
 			target_pos_grid_y == other.target_pos_grid_y &&
-			target_hiddent == other.target.hidden;
+			target_hidden == other.target_hidden;
 	}
 	
 };
@@ -91,11 +91,11 @@ struct hash<wsbs::model::Observation>
 		using boost::hash_value;
       		using boost::hash_combine;
 		std::size_t seed = 0;		
-		hash_combine(seed,hash_value(robot_pos_grid_x));
-		hash_combine(seed,hash_value(robot_pos_grid_y));
-		hash_combine(seed,hash_value(target_pos_grid_x));
-		hash_combine(seed,hash_value(target_pos_grid_y));
-		hash_combine(seed,hash_value(target_hidden));
+		hash_combine(seed,hash_value(observation.robot_pos_grid_x));
+		hash_combine(seed,hash_value(observation.robot_pos_grid_y));
+		hash_combine(seed,hash_value(observation.target_pos_grid_x));
+		hash_combine(seed,hash_value(observation.target_pos_grid_y));
+		hash_combine(seed,hash_value(observation.target_hidden));
 		return seed;
 	}
 
@@ -141,6 +141,7 @@ public:
 	utils::Vector2d robot_vel;
 	utils::Vector2d target_pos;
 	utils::Vector2d target_vel;
+	
 
 	Simulator(double discount, double gridCellSize, const std::vector<utils::Vector2d>& goals, PathProvider& pathProvider);
 
@@ -162,6 +163,7 @@ private:
 	double gridCellSize;
 	std::vector<utils::Vector2d> goals;	
 	PathProvider& pathProvider;
+	std::vector<Action> actions;
 };
 
 inline
@@ -171,6 +173,7 @@ Simulator::Simulator(double discount, double gridCellSize, const std::vector<uti
   goals(goals),
   pathProvider(pathProvider)
 {
+	actions.resize(5);
 	actions[0] = LEFT;
 	actions[1] = RIGHT;
 	actions[2] = BEHIND;
