@@ -186,8 +186,17 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_planner",FORCES.getParams().heuristicPlanner, true);
 
-	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Controller::start,this);
-	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Controller::stop,this);
+	std::string start_service_name, stop_service_name;
+	if (FORCES.getParams().heuristicPlanner) {
+		start_service_name = "/wsbs/start";
+		stop_service_name = "/wsbs/stop";
+	} else {
+		start_service_name = "/wsbs/controller/start";
+		stop_service_name = "/wsbs/controller/stop";
+	}
+
+	ros::ServiceServer start_srv = n.advertiseService(start_service_name, &Controller::start,this);
+	ros::ServiceServer stop_srv  = n.advertiseService(stop_service_name, &Controller::stop,this);
 	ros::ServiceServer select_id_srv  = n.advertiseService("/wsbs/select_target_id", &Controller::selectTargetId,this);	
 	ros::ServiceServer select_mode_srv  = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
 

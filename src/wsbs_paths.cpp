@@ -192,7 +192,7 @@ void Paths::readGoals(TiXmlNode *pParent)
 
 int main(int argc, char** argv)
 {
-	ros::init(argc, argv, "wsbs_controller");
+	ros::init(argc, argv, "wsbs_paths");
 	ros::NodeHandle n;
 	ros::NodeHandle pn("~");
 	wsbs::Paths node(n,pn);
