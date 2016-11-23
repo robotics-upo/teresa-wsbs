@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<goal id="N" x="15.15" y="23.1" r="0.25"/>
+	<goal id="S" x="13.85" y="5.76" r="0.25"/>
+	<goal id="E" x="23.31" y="14.36" r="0.25"/>
+	<goal id="O" x="5.69" y="14.16" r="0.25"/>
+</scenario>

@@ -35,6 +35,7 @@
 #include <std_msgs/UInt8.h>
 #include <nav_msgs/Odometry.h>
 #include <upo_msgs/PersonPoseArrayUPO.h>
+#include <visualization_msgs/MarkerArray.h>
 
 namespace wsbs
 {
@@ -66,6 +67,8 @@ private:
 	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 	bool transformPose(double& x, double& y, double& theta, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
+	void publishGoals(const utils::Multiset<model::State>& belief) const;
+
 	void readGoals(TiXmlNode *pParent);
 	std::vector<utils::Vector2d> goals;
 	
@@ -77,7 +80,7 @@ private:
 	bool running, firstOdom, firstPeople, target_hidden;
 	model::Simulator *simulator;
 	tf::TransformListener tf_listener;
-	double cell_size;
+	double cell_size,running_time;
 	
 };
 
@@ -93,18 +96,18 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
   tf_listener(ros::Duration(10))
 {
 	std::string goals_file, odom_id, people_id;
-	double freq, discount, timeout,threshold,exploration_constant,tracking_range,goal_radius,running_time;
+	double freq, discount, timeout,threshold,exploration_constant,tracking_range,goal_radius;
 	
 	pn.param<std::string>("goals_file",goals_file,"");
-	pn.param<double>("freq",freq,0.5);
-	pn.param<double>("discount",discount,0.8);
-	pn.param<double>("cell_size",cell_size,0.5);
+	pn.param<double>("freq",freq,0.5); 
+	pn.param<double>("discount",discount,0.75);
+	pn.param<double>("cell_size",cell_size,1.0);
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<double>("timeout",timeout,1.5);
-	pn.param<double>("threshold",threshold,0.001);
-	pn.param<double>("exploration_constant",exploration_constant,100);
+	pn.param<double>("timeout",timeout,0.5);
+	pn.param<double>("threshold",threshold,0.01);
+	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,5);
 	pn.param<double>("goal_radius",goal_radius,0.25);
 	pn.param<double>("running_time",running_time,2.0);
@@ -133,7 +136,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Planner::odomReceived,this);
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Planner::peopleReceived,this);
-
+	ros::Publisher goals_marker_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);	
+	
 	ros::Rate r(freq);
 	model::PathProvider pathProvider;
 
@@ -145,19 +149,76 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
 			action = planner.getAction();
+			publishGoals(planner.getCurrentBelief());
+			std::cout<<"DEPTH: "<<planner.getDepth()<<" SIZE: "<<planner.size()<<std::endl;
 			mode_srv.request.controller_mode = action;
-			controller_mode.call(mode_srv);
+			controller_mode.call(mode_srv);						
+			r.sleep();	
 			ros::spinOnce();
 			getObservation(obs);
-			planner.moveTo(action,obs);
+			std::cout<<obs<<std::endl;			
+			
+			bool reset = planner.moveTo(action,obs);
+			
+			
+
+			std::cout<<"RESET: "<<reset<<" SIZE: "<<planner.size()<<std::endl;
+			/*std::cout<<"--- "<< planner.getCurrentBelief().size()<<" --"<<std::endl;
+			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
+				std::cout<<it->second<<std::endl;
+			}*/
+		} else {
+			r.sleep();	
+			ros::spinOnce();
 		}
-
-		r.sleep();	
-		ros::spinOnce();	
+		
+			
 	}
-
 }
 
+
+void Planner::publishGoals(const utils::Multiset<model::State>& belief) const
+{
+	std::unordered_map<utils::Vector2d, double> goals;
+	for (auto it = belief.data().cbegin(); it!= belief.data().cend(); ++it) {
+		if (goals.count(it->first.goal)==0) {
+			goals[it->first.goal]  = (double)(it->second)/(double)(belief.size());
+		} else {
+			goals[it->first.goal] += (double)(it->second)/(double)(belief.size());
+		}
+	}
+	/*
+	visualization_msgs::Marker goal_markers;
+	for (auto it = goals.begin(); it != goals.end(); ++it) {
+		visualization_msgs::Marker marker;
+		marker.header.frame_id = "map";
+          	marker.header.stamp = ros::Time::now();
+		marker.ns = "goal_markers";
+		marker.type = visualization_msgs::Marker::SPHERE;
+		marker.id = i;
+		.action = peopleDetected[i]==1?0:2;
+			people_detected.color.a = 0.7;			
+			if (scenario.people[i].type == TYPE_TARGET) {
+				people_detected.color.r = 1.0;
+            			people_detected.color.g = 0.0;
+            			people_detected.color.b = 0.0;
+			} else{
+		     
+            			people_detected.color.r = 0.0;
+            			people_detected.color.g = 1.0;
+            			people_detected.color.b = 0.0;
+			}
+			
+            		people_detected.scale.x = 2*SIM.getPersonRadius();
+            		people_detected.scale.y = 2*SIM.getPersonRadius();
+            		people_detected.scale.z = 1.5;
+            		people_detected.pose.position.x = x;
+			people_detected.pose.position.y = y;
+			people_detected.pose.position.z = 0.7;
+	}
+	*/
+
+}
 
 
 bool Planner::transformPose(double& x, double& y, double& theta, const std::string& sourceFrameId, const std::string& targetFrameId) const
@@ -229,6 +290,7 @@ void Planner::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
 	if (transformPose(x, y, yaw, odom->header.frame_id, "map")) {
 		simulator->robot_pos.set(x,y);
 		simulator->robot_vel.set(odom->twist.twist.linear.x * std::cos(yaw), odom->twist.twist.linear.x * std::sin(yaw));
+		//simulator->robot_pos+=simulator->robot_vel * running_time;
 		firstOdom=true;
 	}
 }
@@ -245,16 +307,13 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 			if (transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
 				simulator->target_pos.set(x,y);
 				simulator->target_vel.set(people->personPoses[i].vel * std::cos(yaw), people->personPoses[i].vel * std::sin(yaw));
+				//simulator->target_pos+=simulator->target_vel * running_time;
 				target_hidden=false;
 			}
 		}
-
 	}	
-
 	firstPeople=true;
 }
-
-
 
 void Planner::statusReceived(const std_msgs::UInt8::ConstPtr& status)
 {

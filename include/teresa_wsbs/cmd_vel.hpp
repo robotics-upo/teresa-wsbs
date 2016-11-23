@@ -134,10 +134,10 @@ bool CmdVel::compute(double dt)
 	
 	utils::Vector2d positionRef;
 	utils::Angle yawRef;
-	if (FORCES.getData().targetFound) {
-		std::cout<< "DIS: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
-		std::cout<< "Vref: "<<velocityRef.norm()<<std::endl;
-	}
+	//if (FORCES.getData().targetFound) {
+	//	std::cout<< "DIS: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
+	//	std::cout<< "Vref: "<<velocityRef.norm()<<std::endl;
+	//}
 	if ( FORCES.getData().targetFound && 
 		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= FORCES.getParams().targetLookahead &&
 		velocityRef.norm()<0.1) {

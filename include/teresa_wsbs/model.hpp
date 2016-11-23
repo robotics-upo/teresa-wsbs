@@ -23,6 +23,7 @@ struct State
 	utils::Vector2d target_vel;
 	utils::Vector2d goal;
 	
+	
 	bool operator == (const State& other) const
 	{
 		return robot_pos == other.robot_pos && 
@@ -101,6 +102,14 @@ struct hash<wsbs::model::Observation>
 
 };
 
+inline
+ostream& operator<<(ostream& stream, const wsbs::model::Observation& obs)
+{
+	stream<<obs.target_pos_grid_x<<" "<<obs.target_pos_grid_y<<" - "<<obs.robot_pos_grid_x<<" "<<obs.robot_pos_grid_y;
+	return stream;
+}
+
+
 }
 
 namespace wsbs
@@ -150,12 +159,12 @@ public:
 	virtual State& sampleInitialState(State& state) const;
 	virtual unsigned getNumActions() const {return 5;}
 	virtual const Action& getAction(unsigned actionIndex) const {return actions[actionIndex];}
-	virtual bool allActionsAreValid(const State& state) const {return true;}
-	virtual bool isValidAction(const State& state, unsigned actionIndex) const {return true;}
+	virtual bool allActionsAreValid(const State& state) const {return false;}
+	virtual bool isValidAction(const State& state, unsigned actionIndex) const;
 
 private:
 	void getObservation(const State& state, Observation& observation) const;
-	double getReward(const State& state,double targetForce) const;
+	double getReward(const State& state,double force) const;
 
 	double discount;
 	double gridCellSize;
@@ -244,35 +253,45 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents[1].position = state.target_pos;
 	agents[1].velocity = state.target_vel;
 	agents[1].yaw = state.target_vel.angle();
+	
 	sfm::Goal targetLocalGoal;
 	targetLocalGoal.radius = goalRadius;
 	pathProvider.getNextPoint(state.target_pos,state.goal,targetLocalGoal.center);
 	agents[1].goals.push_back(targetLocalGoal);
+	
 	agents[1].groupId = 0;
 
 	sfm::Map *map = &sfm::MAP;
 	sfm::SFM.computeForces(agents,map);
 	sfm::SFM.updatePosition(agents,runningTime);
-
-	nextState.robot_pos = agents[0].position;
+	
+	
+	nextState.robot_pos = agents[0].position; //+utils::Vector2d(utils::RANDOM(0,2),utils::RANDOM(0,2));
 	nextState.robot_vel = agents[0].velocity;
-	nextState.target_pos = agents[1].position;
+	
+	nextState.target_pos = agents[1].position; //+utils::Vector2d(utils::RANDOM(0,2),utils::RANDOM(0,2));
 	nextState.target_vel = agents[1].velocity;
-	nextState.goal = state.goal;
-
+	
+	
+	if (utils::RANDOM()<0.1) {
+		nextState.goal = goals[utils::RANDOM(goals.size())];
+	} else {
+		nextState.goal = state.goal;
+	}
 	
 	reward = getReward(nextState,agents[1].forces.globalForce.norm());	
-
-	return (nextState.target_pos - nextState.goal).norm() > goalRadius;
+	
+	//return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
+	return false;
 }
 
 inline
-double Simulator::getReward(const State& state,double targetForce) const
+double Simulator::getReward(const State& state,double force) const
 {
 	sfm::Map *map = &sfm::MAP;
 	double alpha = map->getNearestObstacle(state.robot_pos).distance;
 	double beta = (state.robot_pos - state.target_pos).norm();
-	return alphaFactor*alpha + betaFactor*beta + gammaFactor*targetForce;
+	return alphaFactor*alpha + betaFactor*beta + gammaFactor*force;
 	
 }
 
@@ -280,10 +299,17 @@ double Simulator::getReward(const State& state,double targetForce) const
 inline
 void Simulator::getObservation(const State& state, Observation& observation) const
 {
-	observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
-	observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
-	observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
-	observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
+	observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
+	observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
+	observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
+	observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
+
+	//observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
+	//observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
+	//observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
+	//observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
+
+
 	if ( (state.robot_pos - state.target_pos).norm() > trackingRange) {
 		observation.target_hidden = true;
 	} else {
@@ -300,6 +326,14 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	return r;
 }
 
+
+inline
+bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
+{
+	const Action& action = getAction(actionIndex);
+	return action != FOLLOW_PATH && action!= WAIT;
+
+}
 
 
 }
