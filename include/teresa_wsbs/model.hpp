@@ -7,6 +7,8 @@
 #include <boost/functional/hash.hpp>
 #include <lightsfm/sfm.hpp>
 #include <lightsfm/map.hpp>
+#include <fstream>
+
 
 namespace wsbs
 {
@@ -139,6 +141,53 @@ public:
 };
 
 
+class FilePathProvider : public PathProvider
+{
+public:
+	FilePathProvider(const std::string& file, double gridSize)
+	: gridSize(gridSize)
+	{
+		std::ifstream in(file);
+		std::string line;
+		double start_x,start_y,goal_x,goal_y,local_x,local_y;
+		utils::Vector2d start,goal,local;
+		if (in.is_open()) {
+			while ( getline (in,line) ) {
+      				sscanf(line.c_str(),"%lf %lf %lf %lf %lf %lf",&start_x,&start_y,&goal_x,&goal_y,&local_x,&local_y);
+				start.set(start_x,start_y);
+				goal.set(goal_x,goal_y);
+				local.set(local_x,local_y);
+				data[start][goal] = local;
+			}
+			in.close();
+		} 
+	}
+	virtual ~FilePathProvider() {}
+
+	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
+	{
+		auto it = data.lower_bound(position);
+		if (it == data.end() || it->second.count(goal)==0) {
+			nextPoint = goal;
+		} else {
+			nextPoint =  it->second.at(goal);
+			if ((nextPoint - position).norm() > 2*gridSize) {
+				nextPoint = goal;
+			}
+		}
+		return nextPoint;
+		
+
+	}
+
+private:
+	double gridSize;
+	std::map<utils::Vector2d, std::unordered_map<utils::Vector2d, utils::Vector2d> > data;
+	
+
+};
+
+
 class Simulator : public pomcp::Simulator<State,Observation,Action>
 {
 public:
@@ -165,6 +214,7 @@ public:
 private:
 	void getObservation(const State& state, Observation& observation) const;
 	double getReward(const State& state,double force) const;
+	bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward, double dt) const;
 
 	double discount;
 	double gridCellSize;
@@ -219,7 +269,7 @@ State& Simulator::sampleInitialState(State& state) const
 	return state;
 }
 
-
+/*
 inline
 bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const
 {
@@ -266,10 +316,10 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	sfm::SFM.updatePosition(agents,runningTime);
 	
 	
-	nextState.robot_pos = agents[0].position; //+utils::Vector2d(utils::RANDOM(0,2),utils::RANDOM(0,2));
+	nextState.robot_pos = agents[0].position; //+utils::Vector2d(utils::RANDOM(0,1),utils::RANDOM(0,1));
 	nextState.robot_vel = agents[0].velocity;
 	
-	nextState.target_pos = agents[1].position; //+utils::Vector2d(utils::RANDOM(0,2),utils::RANDOM(0,2));
+	nextState.target_pos = agents[1].position; //+utils::Vector2d(utils::RANDOM(0,1),utils::RANDOM(0,1));
 	nextState.target_vel = agents[1].velocity;
 	
 	
@@ -279,11 +329,95 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 		nextState.goal = state.goal;
 	}
 	
-	reward = getReward(nextState,agents[1].forces.globalForce.norm());	
+	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
 	
-	//return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
-	return false;
+	return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
+	//return false;
 }
+*/
+
+
+inline
+bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const
+{
+	State a,b;
+	a=state;
+	double r;
+	reward=0;
+	for (unsigned i = 0; i< 5; i++) {
+		simulate(a,actionIndex,b,r,runningTime/5);
+		reward+=r;
+		a=b;
+	}
+	nextState=a;
+	return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
+}
+
+inline
+bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward, double dt) const
+{
+	std::vector<sfm::Agent> agents;
+	agents.resize(2);
+	agents[0].position = state.robot_pos;
+	agents[0].velocity = state.robot_vel;
+	agents[0].yaw = state.robot_vel.angle();	
+
+	const Action& action = getAction(actionIndex);
+
+	sfm::Goal robotGoal;
+	robotGoal.radius = goalRadius;
+	if (action == LEFT) {
+		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().leftNormalVector();
+	} else if (action == RIGHT) {
+		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().rightNormalVector();
+	} else if (action == BEHIND) {
+		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel - state.target_vel.normalized();
+	} else if (action == WAIT) {
+		// No goal
+	} else if (action == FOLLOW_PATH) {
+		// TODO
+	}
+	
+	if (action == LEFT || action == RIGHT || action == BEHIND) {
+		agents[0].goals.push_back(robotGoal);
+	}
+	agents[0].groupId = 0;
+
+	agents[1].position = state.target_pos;
+	agents[1].velocity = state.target_vel;
+	agents[1].yaw = state.target_vel.angle();
+	
+	sfm::Goal targetLocalGoal;
+	targetLocalGoal.radius = goalRadius;
+	pathProvider.getNextPoint(state.target_pos,state.goal,targetLocalGoal.center);
+	agents[1].goals.push_back(targetLocalGoal);
+	
+	agents[1].groupId = 0;
+
+	sfm::Map *map = &sfm::MAP;
+	sfm::SFM.computeForces(agents,map);
+	sfm::SFM.updatePosition(agents,dt);
+	
+	
+	nextState.robot_pos = agents[0].position; //+utils::Vector2d(utils::RANDOM(0,1),utils::RANDOM(0,1));
+	nextState.robot_vel = agents[0].velocity;
+	
+	nextState.target_pos = agents[1].position; //+utils::Vector2d(utils::RANDOM(0,1),utils::RANDOM(0,1));
+	nextState.target_vel = agents[1].velocity;
+	
+	
+	if (utils::RANDOM()<0.1) {
+		nextState.goal = goals[utils::RANDOM(goals.size())];
+	} else {
+		nextState.goal = state.goal;
+	}
+	
+	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
+	
+	return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
+	//return false;
+}
+
 
 inline
 double Simulator::getReward(const State& state,double force) const
@@ -331,8 +465,23 @@ inline
 bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 {
 	const Action& action = getAction(actionIndex);
-	return action != FOLLOW_PATH && action!= WAIT;
+	if (action == FOLLOW_PATH || action == WAIT) {
+		return false;
+	}
+	if (action == BEHIND) {
+		return true;
+	}
+	utils::Vector2d v;
+	if (action == LEFT) {
+		v = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().leftNormalVector();
+	} else if (action == RIGHT) {
+		v = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().rightNormalVector();
+	} 
+	
+	sfm::Map *map = &sfm::MAP;
+	return !map->isObstacle(v);
 
+	
 }
 
 

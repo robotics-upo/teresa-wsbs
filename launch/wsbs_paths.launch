@@ -19,7 +19,8 @@
 
 
 	<node pkg="teresa_wsbs" type="wsbs_paths" name="wsbs_paths" output="screen" respawn="false">
-		<param name="goals_file" value="$(find teresa_wsbs)maps/corridor_goals.xml"/>
+		<!--<param name="goals_file" value="$(find teresa_wsbs)maps/corridor_goals.xml"/>-->
+		<param name="goals_file" value="$(find teresa_wsbs)maps/upo45_goals.xml"/>
 	</node>
    
 

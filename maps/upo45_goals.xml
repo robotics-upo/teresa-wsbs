@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<goal id="rest_area" x="38.58" y="51.56" r="0.25"/>
+	<goal id="vending_machine" x="34.99" y="52.40" r="0.25"/>
+	<goal id="toilette" x="32.13" y="55.36" r="0.25"/>
+	<goal id="water_font" x="29" y="52.44" r="0.25"/>
+	<goal id="reception" x="6.71" y="52.56" r="0.25"/>
+	<goal id="robotics_lab" x="12.29" y="46.43" r="0.25"/>
+	<goal id="classroom_1" x="26.72" y="47.75" r="0.25"/>
+	<goal id="classroom_2_1" x="26.83" y="41.33" r="0.25"/>
+	<goal id="classroom_2_2" x="26.78" y="39.43" r="0.25"/>
+	<goal id="classroom_3_1" x="26.7" y="33.05" r="0.25"/>
+	<goal id="classroom_3_2" x="26.56" y="31.40" r="0.25"/>
+	<goal id="exit_1" x="7.84" y="31.96" r="0.25"/>
+	<goal id="exit_2" x="24.39" y="26.63" r="0.25"/>
+</scenario>

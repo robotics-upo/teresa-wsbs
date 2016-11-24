@@ -32,10 +32,12 @@
 #include <teresa_wsbs/select_mode.h>
 #include <teresa_wsbs/model.hpp>
 #include <vector>
+#include <map>
 #include <std_msgs/UInt8.h>
 #include <nav_msgs/Odometry.h>
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <fstream>
 
 namespace wsbs
 {
@@ -70,6 +72,7 @@ private:
 	void publishGoals(const utils::Multiset<model::State>& belief) const;
 
 	void readGoals(TiXmlNode *pParent);
+	
 	std::vector<utils::Vector2d> goals;
 	
 	ros::ServiceClient controller_start;
@@ -79,8 +82,12 @@ private:
 	unsigned targetId;
 	bool running, firstOdom, firstPeople, target_hidden;
 	model::Simulator *simulator;
+	
 	tf::TransformListener tf_listener;
 	double cell_size,running_time;
+
+	ros::Publisher goal_markers_pub;
+
 	
 };
 
@@ -95,22 +102,23 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
   simulator(NULL),
   tf_listener(ros::Duration(10))
 {
-	std::string goals_file, odom_id, people_id;
+	std::string goals_file, odom_id, people_id,paths_file;
 	double freq, discount, timeout,threshold,exploration_constant,tracking_range,goal_radius;
 	
 	pn.param<std::string>("goals_file",goals_file,"");
-	pn.param<double>("freq",freq,0.5); 
+	pn.param<std::string>("paths_file",paths_file,"");
+	pn.param<double>("freq",freq,1); 
 	pn.param<double>("discount",discount,0.75);
-	pn.param<double>("cell_size",cell_size,1.0);
+	pn.param<double>("cell_size",cell_size,1.5);
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
 	pn.param<double>("timeout",timeout,0.5);
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
-	pn.param<double>("tracking_range",tracking_range,5);
+	pn.param<double>("tracking_range",tracking_range,200);
 	pn.param<double>("goal_radius",goal_radius,0.25);
-	pn.param<double>("running_time",running_time,2.0);
+	pn.param<double>("running_time",running_time,1.0);
 	
 
 	TiXmlDocument xml_doc(goals_file);
@@ -125,6 +133,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 		ROS_BREAK();
 	}
 
+	model::FilePathProvider pathProvider(paths_file,0.5);
+
 	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Planner::start,this);
 	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Planner::stop,this);
 	
@@ -136,10 +146,10 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Planner::odomReceived,this);
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Planner::peopleReceived,this);
-	ros::Publisher goals_marker_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);	
+	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);	
 	
 	ros::Rate r(freq);
-	model::PathProvider pathProvider;
+	
 
 	simulator = new model::Simulator(discount,cell_size,goals,pathProvider,tracking_range,goal_radius,running_time);
 	pomcp::PomcpPlanner<model::State,model::Observation,model::Action> planner(*simulator,timeout,threshold,exploration_constant);
@@ -148,6 +158,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	teresa_wsbs::select_mode mode_srv;
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
+			
 			action = planner.getAction();
 			publishGoals(planner.getCurrentBelief());
 			std::cout<<"DEPTH: "<<planner.getDepth()<<" SIZE: "<<planner.size()<<std::endl;
@@ -162,7 +173,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			
 			
 
-			std::cout<<"RESET: "<<reset<<" SIZE: "<<planner.size()<<std::endl;
+			std::cout<<"RESET: "<<reset<<std::endl;
 			/*std::cout<<"--- "<< planner.getCurrentBelief().size()<<" --"<<std::endl;
 			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
 				std::cout<<it->second<<std::endl;
@@ -177,9 +188,14 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 }
 
 
+
+
+
+
+
 void Planner::publishGoals(const utils::Multiset<model::State>& belief) const
 {
-	std::unordered_map<utils::Vector2d, double> goals;
+	std::map<utils::Vector2d, double> goals;
 	for (auto it = belief.data().cbegin(); it!= belief.data().cend(); ++it) {
 		if (goals.count(it->first.goal)==0) {
 			goals[it->first.goal]  = (double)(it->second)/(double)(belief.size());
@@ -187,36 +203,31 @@ void Planner::publishGoals(const utils::Multiset<model::State>& belief) const
 			goals[it->first.goal] += (double)(it->second)/(double)(belief.size());
 		}
 	}
-	/*
-	visualization_msgs::Marker goal_markers;
+	
+	int index=0;
+	visualization_msgs::MarkerArray goal_markers; 
 	for (auto it = goals.begin(); it != goals.end(); ++it) {
 		visualization_msgs::Marker marker;
 		marker.header.frame_id = "map";
           	marker.header.stamp = ros::Time::now();
 		marker.ns = "goal_markers";
 		marker.type = visualization_msgs::Marker::SPHERE;
-		marker.id = i;
-		.action = peopleDetected[i]==1?0:2;
-			people_detected.color.a = 0.7;			
-			if (scenario.people[i].type == TYPE_TARGET) {
-				people_detected.color.r = 1.0;
-            			people_detected.color.g = 0.0;
-            			people_detected.color.b = 0.0;
-			} else{
-		     
-            			people_detected.color.r = 0.0;
-            			people_detected.color.g = 1.0;
-            			people_detected.color.b = 0.0;
-			}
-			
-            		people_detected.scale.x = 2*SIM.getPersonRadius();
-            		people_detected.scale.y = 2*SIM.getPersonRadius();
-            		people_detected.scale.z = 1.5;
-            		people_detected.pose.position.x = x;
-			people_detected.pose.position.y = y;
-			people_detected.pose.position.z = 0.7;
+		marker.id = index++;
+		marker.action = visualization_msgs::Marker::ADD;
+		marker.color.a = 1.0;			
+		marker.color.r = 0.0;
+            	marker.color.g = 0.0;
+            	marker.color.b = 1.0;
+		marker.lifetime = ros::Duration(4);
+		marker.scale.x = it->second;
+            	marker.scale.y = it->second;
+            	marker.scale.z = it->second;
+            	marker.pose.position.x = it->first.getX();
+		marker.pose.position.y = it->first.getY();
+		marker.pose.position.z = 1.0;
+		goal_markers.markers.push_back(marker);
 	}
-	*/
+	goal_markers_pub.publish(goal_markers);	
 
 }
 

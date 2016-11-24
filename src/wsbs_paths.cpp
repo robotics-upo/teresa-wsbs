@@ -28,6 +28,7 @@
 #include <lightsfm/rosmap.hpp>
 #include <vector>
 #include <map>
+#include <fstream>
 
 namespace wsbs
 {
@@ -66,12 +67,15 @@ private:
 inline
 Paths::Paths(ros::NodeHandle& n, ros::NodeHandle& pn)
 {
-	std::string goals_file;
+	std::string goals_file,paths_file;
 	double grid_size;
 
 	pn.param<std::string>("goals_file",goals_file,"");
 	pn.param<double>("grid_size",grid_size,0.5);
+	pn.param<std::string>("paths_file",paths_file,"/home/ignacio/paths.txt");
 
+	std::ofstream file;
+	file.open(paths_file);
 
 	TiXmlDocument xml_doc(goals_file);
 	if (xml_doc.LoadFile()) {
@@ -96,13 +100,14 @@ Paths::Paths(ros::NodeHandle& n, ros::NodeHandle& pn)
 	unsigned counter=0;
 	std::map<PathIndex,std::vector<utils::Vector2d> > paths;
 	unsigned step = (unsigned)std::round(grid_size/sfm::MAP.getInfo().resolution);
+	
 	for (unsigned i=0; i<sfm::MAP.getInfo().width; i+=step) {
 		index.y=0;
 		for (unsigned j=0; j< sfm::MAP.getInfo().height; j+=step) {
 			pixel.x = (int)i;
 			pixel.y = (int)j;
 			sfm::MAP.pixelToMap(pixel,start);
-			if (sfm::MAP.isObstacle(start)) {
+			if (sfm::MAP.isObstacle(start) || sfm::MAP.getNearestObstacle(start).distance< grid_size) {
 				continue;
 			}
 			for (unsigned k=0; k< goals.size(); k++) {
@@ -116,27 +121,40 @@ Paths::Paths(ros::NodeHandle& n, ros::NodeHandle& pn)
 					std::cout<<"Y: "<<index.y<<std::endl;
 					std::cout<<"K: "<<index.goal_index<<std::endl;
 					std::cout<<"PATH SIZE: "<<paths[index].size()<<std::endl;
+					double size = 0;
+					for (unsigned i=1; i< paths[index].size(); i++) {
+						size += (paths[index][i] - paths[index][i-1]).norm();
+						if (size >= grid_size) {
+							std::cout<<"Local goal: "<<paths[index][i]<<std::endl;
+							
+							file<<start.getX()<<" "<<start.getY()<<" "<<goals[k].center.getX()<<" "<<goals[k].center.getY()<<" "<<
+								paths[index][i].getX()<<" "<<paths[index][i].getY()<<std::endl;
+							break;
+						}
+					}
 				}
 			}
 			index.y++;
 		}
 		index.x++;
 	}
-	
+	file.close();	
 
 }
 
 inline
 bool Paths::makePlan(const utils::Vector2d& start, const utils::Vector2d& goal, double tolerance, std::vector<utils::Vector2d>& plan)
 {
+	std::cout<<"New query: "<<start<<" -> "<<goal<<std::endl;
 	nav_msgs::GetPlan query;
 
-
+	query.request.start.header.stamp=ros::Time(0);
 	query.request.start.header.frame_id="map";
 	query.request.start.pose.position.x = start.getX();
 	query.request.start.pose.position.y = start.getY();
 	query.request.start.pose.position.z = 0;
 	
+	query.request.goal.header.stamp=ros::Time(0);	
 	query.request.goal.header.frame_id="map";
 	query.request.goal.pose.position.x = goal.getX();
 	query.request.goal.pose.position.y = goal.getY();
