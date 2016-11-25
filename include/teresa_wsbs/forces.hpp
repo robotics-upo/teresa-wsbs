@@ -224,8 +224,7 @@ public:
 	bool setXtion(const sensor_msgs::LaserScan::ConstPtr& xtion);
 	bool setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId);
 	bool checkCollision(double linearVelocity, double angularVelocity, double& distance, double& time) const;
-	
-
+	void computeTargetGroupForces(utils::Vector2d& vis, utils::Vector2d& att, utils::Vector2d& rep) const;
 private:
 
 	static bool compareNorm(const Obstacle& i, const Obstacle& j) {return i.center.squaredNorm() < j.center.squaredNorm();}
@@ -501,6 +500,51 @@ void Forces::computeDesiredForce()
 
 }
 
+
+inline
+void Forces::computeTargetGroupForces(utils::Vector2d& vis, utils::Vector2d& att, utils::Vector2d& rep) const
+{
+	vis.set(0,0);
+	att.set(0,0);
+	rep.set(0,0);
+
+	if (!data.targetFound) {
+		return;
+	}
+
+	// Gaze force
+	if (data.target.velocity.norm() > 0.01) {
+		utils::Vector2d desiredDirection = data.target.velocity.normalized();
+		utils::Vector2d relativeCom =  data.robot.position - data.target.position;
+		utils::Angle visionAngle = utils::Angle::fromDegree(90);
+		double elementProduct = desiredDirection.dot(relativeCom);
+		utils::Angle comAngle = utils::Angle::fromRadian(std::acos(elementProduct / (desiredDirection.norm() * relativeCom.norm())));
+		if (comAngle > visionAngle) {
+			double desiredDirectionSquared = desiredDirection.squaredNorm();
+			double desiredDirectionDistance = elementProduct / desiredDirectionSquared;
+			vis = desiredDirectionDistance * desiredDirection;
+			vis *= params.forceFactorGroupGaze;
+		}
+	}
+	// Coherence force
+	utils::Vector2d com = (data.target.position + data.robot.position)*0.5;
+	utils::Vector2d relativeCom = com - data.target.position;
+	double cohDistance = relativeCom.norm();
+	att = relativeCom;
+	double softenedFactor = params.forceFactorGroupCoherence * (std::tanh(cohDistance - 0.5) + 1) / 2;
+	att *= softenedFactor;
+	
+	// Repulsion Force
+	utils::Vector2d diff = data.target.position - data.robot.position;
+	double repDistance = diff.norm();
+	if (repDistance < params.robotRadius + params.personRadius) {
+		rep += diff;
+	}
+	rep *= params.forceFactorGroupRepulsion;
+}
+
+
+
 inline
 void Forces::computeGroupForce()
 {
@@ -557,8 +601,6 @@ void Forces::computeGroupForce()
 
 	data.groupForce =  data.groupGazeForce +  data.groupCoherenceForce + data.groupRepulsionForce;
 
-
-	
 }
 
 inline

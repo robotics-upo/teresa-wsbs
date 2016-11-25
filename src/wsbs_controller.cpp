@@ -33,6 +33,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
+#include <teresa_wsbs/Forces.h>
 
 namespace wsbs
 {
@@ -122,11 +123,13 @@ private:
 	unsigned targetId;
 	ControllerMode controller_mode;
 	
-	ros::Publisher markers_pub;
+	ros::Publisher robot_markers_pub;
+	ros::Publisher target_markers_pub;
 	ros::Publisher path_pub;
 	ros::Publisher goal_pub;
 	ros::Publisher trajectories_pub;
 	ros::Publisher status_pub;
+	ros::Publisher forces_pub;
 
 	ros::ServiceClient leds_client;
 
@@ -213,10 +216,13 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
-	markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
+	robot_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
+	target_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/target_forces", 1);
+	forces_pub = pn.advertise<teresa_wsbs::Forces>("/wsbs/forces", 1);
 	path_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/target_path", 1);
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
 	trajectories_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/trajectories", 1);
+	
 
 	odom_timeout.setId(odom_id);
 	odom_timeout.setTimeout(odom_timeout_threshold);
@@ -567,7 +573,71 @@ void Controller::publishForces()
 	publishForceMarker(3,getColor(1,0,0,1),FORCES.getData().desiredForce,markers);	
 	//publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().globalForce,markers);	
 	publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().velocityRef,markers);	
-	markers_pub.publish(markers);
+	robot_markers_pub.publish(markers);
+
+
+	teresa_wsbs::Forces forces;
+	forces.header.frame_id = "/odom";
+	forces.header.stamp = ros::Time::now();
+
+	forces.status = (uint8_t)state;
+	forces.mode = (uint8_t)controller_mode;
+	forces.target_detected = FORCES.getData().targetFound;
+
+	forces.target_pose.x = FORCES.getData().target.position.getX();
+	forces.target_pose.y = FORCES.getData().target.position.getY();
+	forces.target_pose.theta = FORCES.getData().target.yaw.toRadian();
+
+	forces.target_pose.x = FORCES.getData().robot.position.getX();
+	forces.target_pose.y = FORCES.getData().robot.position.getY();
+	forces.target_pose.theta = FORCES.getData().robot.yaw.toRadian();
+
+	forces.target_lin_vel = FORCES.getData().target.linearVelocity;
+	
+	forces.robot_lin_vel = FORCES.getData().robot.linearVelocity;
+	forces.robot_ang_vel = FORCES.getData().robot.angularVelocity;
+
+
+	forces.robot_local_goal.x = FORCES.getData().goal.getX();
+	forces.robot_local_goal.y = FORCES.getData().goal.getY();
+	forces.robot_antimove =  FORCES.getData().validGoal;
+
+	utils::Vector2d vis, att, rep, group;
+
+	FORCES.computeTargetGroupForces(vis, att, rep);
+
+	group = vis + att + rep;
+
+	forces.target_group_force.x =  group.getX();
+	forces.target_group_force.y =  group.getY();	
+	forces.target_group_vis_force.x = vis.getX();
+	forces.target_group_vis_force.y = vis.getY();
+	forces.target_group_att_force.x = att.getX();
+	forces.target_group_att_force.y = att.getY();
+	forces.target_group_rep_force.x = rep.getX();
+	forces.target_group_rep_force.y = rep.getY();
+
+
+	forces.robot_global_force.x = FORCES.getData().globalForce.getX();
+	forces.robot_global_force.y = FORCES.getData().globalForce.getY();
+	forces.robot_desired_force.x = FORCES.getData().desiredForce.getX();
+	forces.robot_desired_force.y = FORCES.getData().desiredForce.getY();
+	forces.robot_obstacle_force.x = FORCES.getData().obstacleForce.getX();
+	forces.robot_obstacle_force.y = FORCES.getData().obstacleForce.getY();
+	forces.robot_social_force.x = FORCES.getData().socialForce.getX();
+	forces.robot_social_force.y = FORCES.getData().socialForce.getY();
+	forces.robot_group_force.x =  FORCES.getData().groupForce.getX();
+	forces.robot_group_force.y =  FORCES.getData().groupForce.getY();	
+	forces.robot_group_vis_force.x = FORCES.getData().groupGazeForce.getX();
+	forces.robot_group_vis_force.y = FORCES.getData().groupGazeForce.getY();
+	forces.robot_group_att_force.x = FORCES.getData().groupCoherenceForce.getX();
+	forces.robot_group_att_force.y = FORCES.getData().groupCoherenceForce.getY();
+	forces.robot_group_rep_force.x = FORCES.getData().groupRepulsionForce.getX();
+	forces.robot_group_rep_force.y = FORCES.getData().groupRepulsionForce.getY();
+	forces.robot_vref.x = FORCES.getData().velocityRef.getX();
+	forces.robot_vref.y = FORCES.getData().velocityRef.getY();
+
+	forces_pub.publish(forces);
 }
 
 

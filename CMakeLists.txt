@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   std_msgs
+  geometry_msgs
   upo_msgs
   tf
   cmake_modules
@@ -50,11 +51,10 @@ find_package(TinyXML REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+   FILES
+   Forces.msg
+)
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -76,6 +76,7 @@ add_service_files(
 generate_messages(
    DEPENDENCIES
    std_msgs
+   geometry_msgs
 )
 
 
@@ -111,7 +112,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES wsbs
-  CATKIN_DEPENDS nav_msgs roscpp sensor_msgs std_msgs upo_msgs tf 
+  CATKIN_DEPENDS nav_msgs roscpp sensor_msgs std_msgs geometry_msgs upo_msgs tf 
    DEPENDS system_lib TinyXML 
 )
 
