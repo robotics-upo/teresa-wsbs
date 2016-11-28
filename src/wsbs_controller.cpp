@@ -33,7 +33,7 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
-#include <teresa_wsbs/Forces.h>
+#include <teresa_wsbs/Info.h>
 
 namespace wsbs
 {
@@ -218,7 +218,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
 	robot_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
 	target_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/target_forces", 1);
-	forces_pub = pn.advertise<teresa_wsbs::Forces>("/wsbs/forces", 1);
+	forces_pub = pn.advertise<teresa_wsbs::Info>("/wsbs/controller/info", 1);
 	path_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/target_path", 1);
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
 	trajectories_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/trajectories", 1);
@@ -576,7 +576,7 @@ void Controller::publishForces()
 	robot_markers_pub.publish(markers);
 
 
-	teresa_wsbs::Forces forces;
+	teresa_wsbs::Info forces;
 	forces.header.frame_id = "/odom";
 	forces.header.stamp = ros::Time::now();
 

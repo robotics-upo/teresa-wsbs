@@ -107,18 +107,18 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	
 	pn.param<std::string>("goals_file",goals_file,"");
 	pn.param<std::string>("paths_file",paths_file,"");
-	pn.param<double>("freq",freq,1); 
+	pn.param<double>("freq",freq,0.5); 
 	pn.param<double>("discount",discount,0.75);
-	pn.param<double>("cell_size",cell_size,1.5);
+	pn.param<double>("cell_size",cell_size,1.0);
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<double>("timeout",timeout,0.5);
+	pn.param<double>("timeout",timeout,1.0);
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,200);
-	pn.param<double>("goal_radius",goal_radius,0.25);
-	pn.param<double>("running_time",running_time,1.0);
+	pn.param<double>("goal_radius",goal_radius,1.0);
+	pn.param<double>("running_time",running_time,2.0);
 	
 
 	TiXmlDocument xml_doc(goals_file);
@@ -133,7 +133,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 		ROS_BREAK();
 	}
 
-	model::FilePathProvider pathProvider(paths_file,0.5);
+	//model::FilePathProvider pathProvider(paths_file,0.5);
+	model::AStarPathProvider pathProvider;
 
 	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Planner::start,this);
 	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Planner::stop,this);

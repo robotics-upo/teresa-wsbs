@@ -8,6 +8,7 @@
 #include <lightsfm/sfm.hpp>
 #include <lightsfm/map.hpp>
 #include <fstream>
+#include <teresa_wsbs/astar.hpp>
 
 
 namespace wsbs
@@ -188,6 +189,100 @@ private:
 };
 
 
+class AStarPathProvider : public PathProvider
+{
+public:
+	AStarPathProvider()
+	{
+		aStar.addNode("rest_area",38.58,51.56);
+		aStar.addNode("vending_machine",34.99,52.40);
+		aStar.addNode("toilette",32.13,55.36);
+		aStar.addNode("water_font",29,52.44);
+		aStar.addNode("reception" ,6.71,52.56);
+		aStar.addNode("robotics_lab" ,12.29,46.43);
+		aStar.addNode("classroom_1" ,26.72,47.75);
+		aStar.addNode("classroom_2_1" ,26.83,41.33);
+		aStar.addNode("classroom_2_2" ,26.78,39.43);
+		aStar.addNode("classroom_3_1" ,26.7,33.05);
+		aStar.addNode("classroom_3_2" ,26.56,31.40);
+		aStar.addNode("exit_1" ,7.84,31.96);
+		aStar.addNode("exit_2" ,24.39,26.63);
+		aStar.addNode("coffe_area" ,32.34,51.15);
+		aStar.addNode("enter_coffe_area" ,28.73,50.55);
+		aStar.addNode("enter_corridor_1" ,7.73,50.58);
+		aStar.addNode("enter_corridor_2" ,24.75,50.31);
+		aStar.addNode("hall" ,5.53,51.86);
+		aStar.addNode("enter_lab" ,7.88,47.54);
+		aStar.addNode("whiteboard" ,11.12,47.60);
+		aStar.addNode("corridor_2_a" ,24.56,47.51);
+		aStar.addNode("corridor_2_b" ,24.56,47.51);
+		aStar.addNode("corridor_2_c" ,24.31,32.10);
+
+		aStar.addEdge("rest_area" ,"vending_machine");
+		aStar.addEdge("rest_area" ,"toilette");
+		aStar.addEdge("rest_area" ,"water_font");
+		aStar.addEdge("rest_area" ,"coffe_area");
+		aStar.addEdge("rest_area" ,"enter_coffe_area");
+		aStar.addEdge("vending_machine" ,"toilette");
+		aStar.addEdge("vending_machine" ,"water_font");
+		aStar.addEdge("vending_machine" ,"coffe_area");
+		aStar.addEdge("vending_machine" ,"enter_coffe_area");
+		aStar.addEdge("toilette" ,"water_font");
+		aStar.addEdge("toilette" ,"coffe_area");
+		aStar.addEdge("toilette" ,"enter_coffe_area");
+		aStar.addEdge("water_font" ,"coffe_area");
+		aStar.addEdge("water_font" ,"enter_coffe_area");
+		aStar.addEdge("coffe_area" ,"enter_coffe_area");
+		aStar.addEdge("enter_coffe_area" ,"enter_corridor_2");
+		aStar.addEdge("enter_corridor_2" ,"corridor_2_a");
+		aStar.addEdge("corridor_2_a" ,"classroom_1");
+		aStar.addEdge("corridor_2_a" ,"corridor_2_b");
+		aStar.addEdge("corridor_2_b" ,"classroom_2_1");
+		aStar.addEdge("corridor_2_b" ,"classroom_2_2");
+		aStar.addEdge("corridor_2_b" ,"corridor_2_c");
+		aStar.addEdge("corridor_2_c" ,"classroom_3_1");
+		aStar.addEdge("corridor_2_c" ,"classroom_3_2");
+		aStar.addEdge("corridor_2_c" ,"exit_2");
+		aStar.addEdge("enter_corridor_2" ,"enter_corridor_1");
+		aStar.addEdge("enter_corridor_1" ,"enter_lab");
+		aStar.addEdge("enter_lab" ,"whiteboard");
+		aStar.addEdge("whiteboard" ,"robotics_lab");
+		aStar.addEdge("enter_lab" ,"exit_1");
+		aStar.addEdge("enter_corridor_1" ,"hall");
+		aStar.addEdge("hall" ,"reception");
+
+	};
+	virtual ~AStarPathProvider() {}
+	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
+	{
+		std::string start_id,goal_id;
+		aStar.getClosestNode(position.getX(),position.getY(),start_id);
+		aStar.getClosestNode(goal.getX(),goal.getY(),goal_id);
+		std::list<std::string> path;		
+		aStar.getPath(start_id,goal_id,path);
+		if (path.size()<2) {
+			nextPoint = goal;
+			return nextPoint;
+		}
+		double x,y;
+		auto it = path.begin();
+		++it;
+		aStar.getPos(*it,x,y);
+		nextPoint.set(x,y);
+		return nextPoint;
+	}
+
+private:
+
+	
+
+
+	utils::AStar aStar;
+
+};
+
+
+
 class Simulator : public pomcp::Simulator<State,Observation,Action>
 {
 public:
@@ -360,6 +455,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents.resize(2);
 	agents[0].position = state.robot_pos;
 	agents[0].velocity = state.robot_vel;
+	agents[0].desiredVelocity = 0.6;
 	agents[0].yaw = state.robot_vel.angle();	
 
 	const Action& action = getAction(actionIndex);
@@ -386,6 +482,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents[1].position = state.target_pos;
 	agents[1].velocity = state.target_vel;
 	agents[1].yaw = state.target_vel.angle();
+	agents[1].desiredVelocity = 1.29;
 	
 	sfm::Goal targetLocalGoal;
 	targetLocalGoal.radius = goalRadius;
@@ -406,11 +503,11 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	nextState.target_vel = agents[1].velocity;
 	
 	
-	if (utils::RANDOM()<0.1) {
-		nextState.goal = goals[utils::RANDOM(goals.size())];
-	} else {
+	//if (utils::RANDOM()<0.1) {
+	//	nextState.goal = goals[utils::RANDOM(goals.size())];
+	//} else {
 		nextState.goal = state.goal;
-	}
+	//}
 	
 	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
 	
@@ -433,10 +530,10 @@ double Simulator::getReward(const State& state,double force) const
 inline
 void Simulator::getObservation(const State& state, Observation& observation) const
 {
-	observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
-	observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
-	observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
-	observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
+	observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,0.5))/gridCellSize);
+	observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,0.5))/gridCellSize);
+	observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,0.5))/gridCellSize);
+	observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,0.5))/gridCellSize);
 
 	//observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
 	//observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
