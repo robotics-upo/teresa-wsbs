@@ -122,6 +122,7 @@ private:
 	
 	unsigned targetId;
 	ControllerMode controller_mode;
+	utils::Vector2d controller_mode_goal;
 	
 	ros::Publisher robot_markers_pub;
 	ros::Publisher target_markers_pub;
@@ -259,7 +260,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
-			FORCES.compute(controller_mode);
+			FORCES.compute(controller_mode, controller_mode_goal);
 			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
 			//finishing = CMD_VEL.compute(dt);
 			cmd_vel_pub.publish(CMD_VEL.getCommand());
@@ -479,6 +480,10 @@ bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs:
 	} else {
 		ROS_INFO("Controller mode is %d",req.controller_mode);
 		controller_mode = (ControllerMode)req.controller_mode;
+		if (controller_mode == SET_GOAL) {
+			controller_mode_goal.set(req.goal_x,req.goal_y);
+			ROS_INFO("Controller mode goal: (%lf, %lf)",controller_mode_goal.getX(), controller_mode_goal.getY());
+		}
 		res.error_code = 0;
 	}
 	return true;

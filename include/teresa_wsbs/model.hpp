@@ -7,6 +7,7 @@
 #include <boost/functional/hash.hpp>
 #include <lightsfm/sfm.hpp>
 #include <lightsfm/map.hpp>
+#include <lightsfm/rosmap.hpp>
 #include <fstream>
 #include <teresa_wsbs/astar.hpp>
 
@@ -125,7 +126,8 @@ enum Action {
 	RIGHT		= 1,
 	BEHIND		= 2,
 	FOLLOW_PATH	= 3,
-	WAIT		= 4
+	WAIT		= 4,
+	SET_GOAL	= 5
 };
 
 class PathProvider
@@ -194,9 +196,28 @@ class AStarPathProvider : public PathProvider
 public:
 	AStarPathProvider()
 	{
+		
 		aStar.addNode("rest_area",38.58,51.56);
 		aStar.addNode("vending_machine",34.99,52.40);
-		aStar.addNode("toilette",32.13,55.36);
+		aStar.addNode("water_font",29,52.44);
+		aStar.addNode("coffe_area" ,32.34,51.15);
+		aStar.addNode("enter_coffe_area" ,28.73,50.55);
+
+		aStar.addEdge("rest_area" ,"vending_machine");
+		aStar.addEdge("rest_area" ,"water_font");
+		aStar.addEdge("rest_area" ,"coffe_area");
+		aStar.addEdge("rest_area" ,"enter_coffe_area");
+		aStar.addEdge("vending_machine" ,"water_font");
+		aStar.addEdge("vending_machine" ,"coffe_area");
+		aStar.addEdge("vending_machine" ,"enter_coffe_area");
+		aStar.addEdge("water_font" ,"coffe_area");
+		aStar.addEdge("water_font" ,"enter_coffe_area");
+		aStar.addEdge("coffe_area" ,"enter_coffe_area");
+		
+
+		/*
+		aStar.addNode("rest_area",38.58,51.56);
+		aStar.addNode("vending_machine",34.99,52.40);
 		aStar.addNode("water_font",29,52.44);
 		aStar.addNode("reception" ,6.71,52.56);
 		aStar.addNode("robotics_lab" ,12.29,46.43);
@@ -219,17 +240,12 @@ public:
 		aStar.addNode("corridor_2_c" ,24.31,32.10);
 
 		aStar.addEdge("rest_area" ,"vending_machine");
-		aStar.addEdge("rest_area" ,"toilette");
 		aStar.addEdge("rest_area" ,"water_font");
 		aStar.addEdge("rest_area" ,"coffe_area");
 		aStar.addEdge("rest_area" ,"enter_coffe_area");
-		aStar.addEdge("vending_machine" ,"toilette");
 		aStar.addEdge("vending_machine" ,"water_font");
 		aStar.addEdge("vending_machine" ,"coffe_area");
 		aStar.addEdge("vending_machine" ,"enter_coffe_area");
-		aStar.addEdge("toilette" ,"water_font");
-		aStar.addEdge("toilette" ,"coffe_area");
-		aStar.addEdge("toilette" ,"enter_coffe_area");
 		aStar.addEdge("water_font" ,"coffe_area");
 		aStar.addEdge("water_font" ,"enter_coffe_area");
 		aStar.addEdge("coffe_area" ,"enter_coffe_area");
@@ -250,6 +266,8 @@ public:
 		aStar.addEdge("enter_lab" ,"exit_1");
 		aStar.addEdge("enter_corridor_1" ,"hall");
 		aStar.addEdge("hall" ,"reception");
+		*/
+		
 
 	};
 	virtual ~AStarPathProvider() {}
@@ -301,7 +319,7 @@ public:
 	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const;
 
 	virtual State& sampleInitialState(State& state) const;
-	virtual unsigned getNumActions() const {return 5;}
+	virtual unsigned getNumActions() const {return 6;}
 	virtual const Action& getAction(unsigned actionIndex) const {return actions[actionIndex];}
 	virtual bool allActionsAreValid(const State& state) const {return false;}
 	virtual bool isValidAction(const State& state, unsigned actionIndex) const;
@@ -340,12 +358,13 @@ Simulator::Simulator(double discount, double gridCellSize, const std::vector<uti
   betaFactor(-1.0),
   gammaFactor(-1.0)
 {
-	actions.resize(5);
+	actions.resize(6);
 	actions[0] = LEFT;
 	actions[1] = RIGHT;
 	actions[2] = BEHIND;
 	actions[3] = FOLLOW_PATH;
 	actions[4] = WAIT;
+	actions[5] = SET_GOAL;
 }
 
 inline
@@ -462,7 +481,9 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 
 	sfm::Goal robotGoal;
 	robotGoal.radius = goalRadius;
-	if (action == LEFT) {
+	if (action == SET_GOAL) {
+		pathProvider.getNextPoint(state.robot_pos,state.goal,robotGoal.center);
+	} else if (action == LEFT) {
 		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().leftNormalVector();
 	} else if (action == RIGHT) {
 		robotGoal.center = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().rightNormalVector();
@@ -474,7 +495,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 		// TODO
 	}
 	
-	if (action == LEFT || action == RIGHT || action == BEHIND) {
+	if (action == LEFT || action == RIGHT || action == BEHIND || action == SET_GOAL) {
 		agents[0].goals.push_back(robotGoal);
 	}
 	agents[0].groupId = 0;
@@ -503,11 +524,11 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	nextState.target_vel = agents[1].velocity;
 	
 	
-	//if (utils::RANDOM()<0.1) {
-	//	nextState.goal = goals[utils::RANDOM(goals.size())];
-	//} else {
+	if ((nextState.target_pos - state.goal).norm()<0.1) {
+		nextState.goal = goals[utils::RANDOM(goals.size())];
+	} else {
 		nextState.goal = state.goal;
-	//}
+	}
 	
 	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
 	
@@ -562,10 +583,11 @@ inline
 bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 {
 	const Action& action = getAction(actionIndex);
+	
 	if (action == FOLLOW_PATH || action == WAIT) {
 		return false;
 	}
-	if (action == BEHIND) {
+	if (action == BEHIND || action == SET_GOAL) {
 		return true;
 	}
 	utils::Vector2d v;

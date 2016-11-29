@@ -38,6 +38,7 @@
 #include <limits>
 #include <algorithm>
 #include <lightsfm/vector2d.hpp>
+#include <teresa_wsbs/model.hpp>
 
 namespace wsbs
 {
@@ -73,7 +74,8 @@ enum ControllerMode {
 	RIGHT		= 1,
 	BEHIND		= 2,
 	FOLLOW_PATH	= 3,
-	WAIT		= 4
+	WAIT		= 4,
+	SET_GOAL	= 5
 };
 
 
@@ -218,7 +220,7 @@ public:
 	Parameters& getParams() {return params;}
 	const Parameters& getParams() const {return params;}
 	void reset();
-	void compute(ControllerMode controller_mode);
+	void compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
 	bool setRobot(const nav_msgs::Odometry::ConstPtr& odom); 
 	bool setLaser(const sensor_msgs::LaserScan::ConstPtr& laser);
 	bool setXtion(const sensor_msgs::LaserScan::ConstPtr& xtion);
@@ -235,7 +237,7 @@ private:
 	void computeObstacleForceSum(const sensor_msgs::LaserScan::ConstPtr& scan, utils::Vector2d& forceSum, unsigned& points, std::vector<Obstacle>& obstacles) const;
 	utils::Vector2d computeSocialForce(const utils::Vector2d& position, const utils::Vector2d& velocity) const;
 	void computeDesiredForce();
-	void selectGoal(ControllerMode controller_mode);
+	void selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
 	void computeGroupForce();
 	
 
@@ -371,7 +373,7 @@ void Agent::move(double dt)
 }
 
 inline
-void Forces::compute(ControllerMode controller_mode)
+void Forces::compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
 {
 	if (laserPoints==0 && xtionPoints==0) {
 		data.obstacleForce.set(0,0);
@@ -382,7 +384,7 @@ void Forces::compute(ControllerMode controller_mode)
 		data.obstacles.insert(data.obstacles.end(), xtionObstacles.begin(), xtionObstacles.end());
 		std::sort(data.obstacles.begin(),data.obstacles.end(),compareNorm);
 	}
-	selectGoal(controller_mode);
+	selectGoal(controller_mode, controller_mode_goal);
 	computeDesiredForce();
 	computeGroupForce();
 	data.globalForce = data.desiredForce + data.obstacleForce + data.socialForce + data.groupForce;
@@ -455,6 +457,7 @@ inline
 void Forces::computeDesiredForce()
 {
 	if (data.validGoal) {
+		
 		double vel = params.robotMaxLinearVelocity;
 		if (data.targetFound) {
 			if ((data.robot.position - data.target.position).norm() <= FORCES.getParams().targetLookahead) {
@@ -491,6 +494,7 @@ void Forces::computeDesiredForce()
 			data.desiredForce = -data.robot.velocity / params.relaxationTime;
 			data.desiredDirection.set(0,0);
 		}
+		
 	} else {
 		data.desiredForce = -data.robot.velocity / params.relaxationTime;
 		data.desiredDirection.set(0,0);
@@ -604,9 +608,9 @@ void Forces::computeGroupForce()
 }
 
 inline
-void Forces::selectGoal(ControllerMode controller_mode)
+void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
 {
-	
+	static  model::AStarPathProvider aStar;
 
 	// By default, if the goal is not valid, it will perform an antimove
 	data.validGoal = false;
@@ -628,7 +632,11 @@ void Forces::selectGoal(ControllerMode controller_mode)
 		}
 
 	} else {
-		if (data.targetFound && controller_mode != FOLLOW_PATH) {
+		if (controller_mode == SET_GOAL) {
+			//aStar.getNextPoint(data.robot.position,controller_mode_goal,data.goal);
+			data.goal = controller_mode_goal;			
+			data.validGoal = true;
+		} else if (data.targetFound && controller_mode != FOLLOW_PATH) {
 			if (controller_mode == LEFT) {
 				data.goal = data.leftGoal;
 				data.validGoal = true;

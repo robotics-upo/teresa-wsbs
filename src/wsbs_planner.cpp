@@ -69,7 +69,7 @@ private:
 	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 	bool transformPose(double& x, double& y, double& theta, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
-	void publishGoals(const utils::Multiset<model::State>& belief) const;
+	utils::Vector2d publishGoals(const utils::Multiset<model::State>& belief) const;
 
 	void readGoals(TiXmlNode *pParent);
 	
@@ -156,14 +156,17 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pomcp::PomcpPlanner<model::State,model::Observation,model::Action> planner(*simulator,timeout,threshold,exploration_constant);
 	model::Observation obs;
 	unsigned action;
+	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
 			
 			action = planner.getAction();
-			publishGoals(planner.getCurrentBelief());
+			likelyGoal = publishGoals(planner.getCurrentBelief());
 			std::cout<<"DEPTH: "<<planner.getDepth()<<" SIZE: "<<planner.size()<<std::endl;
 			mode_srv.request.controller_mode = action;
+			mode_srv.request.goal_x = likelyGoal.getX();
+			mode_srv.request.goal_y = likelyGoal.getY();
 			controller_mode.call(mode_srv);						
 			r.sleep();	
 			ros::spinOnce();
@@ -194,7 +197,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 
 
-void Planner::publishGoals(const utils::Multiset<model::State>& belief) const
+utils::Vector2d Planner::publishGoals(const utils::Multiset<model::State>& belief) const
 {
 	std::map<utils::Vector2d, double> goals;
 	for (auto it = belief.data().cbegin(); it!= belief.data().cend(); ++it) {
@@ -204,7 +207,15 @@ void Planner::publishGoals(const utils::Multiset<model::State>& belief) const
 			goals[it->first.goal] += (double)(it->second)/(double)(belief.size());
 		}
 	}
+
+	if (goals.empty()) {
+		for (unsigned i = 0 ; i< Planner::goals.size(); i++) {
+			goals[Planner::goals[i]] = 1.0 / (double) Planner::goals.size(); 
+		}
 	
+	}
+	utils::Vector2d likelyGoal;
+	double max=0;
 	int index=0;
 	visualization_msgs::MarkerArray goal_markers; 
 	for (auto it = goals.begin(); it != goals.end(); ++it) {
@@ -227,8 +238,13 @@ void Planner::publishGoals(const utils::Multiset<model::State>& belief) const
 		marker.pose.position.y = it->first.getY();
 		marker.pose.position.z = 1.0;
 		goal_markers.markers.push_back(marker);
+		if (it->second > max) {
+			max = it->second;
+			likelyGoal = it->first;
+		}
 	}
 	goal_markers_pub.publish(goal_markers);	
+	return likelyGoal;
 
 }
 
