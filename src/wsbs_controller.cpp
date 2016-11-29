@@ -143,13 +143,17 @@ private:
 	int number_of_leds;
 
 	utils::Vector2d currentGoal;
+	utils::Vector2d targetPos;
+	utils::Vector2d targetVel;
+	bool targetReceived;
 };
 
 
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 :  state(WAITING_FOR_START),
    controller_mode(RIGHT),
-   is_finishing(false)
+   is_finishing(false),
+   targetReceived(false)
 {
 
 	double odom_timeout_threshold;
@@ -182,7 +186,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
 	pn.param<double>("people_timeout",people_timeout_threshold,2.0);
 	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
-	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,20);
+	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,200);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
@@ -484,6 +488,10 @@ bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs:
 			controller_mode_goal.set(req.goal_x,req.goal_y);
 			ROS_INFO("Controller mode goal: (%lf, %lf)",controller_mode_goal.getX(), controller_mode_goal.getY());
 		}
+		targetPos.set(req.target_pos_x,req.target_pos_y);
+		targetVel.set(req.target_vel_x,req.target_vel_y);
+		targetReceived = true;
+		
 		res.error_code = 0;
 	}
 	return true;
@@ -741,7 +749,7 @@ void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& pe
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (FORCES.setPeople(people, targetId)) {
+	if (FORCES.setPeople(people, targetId, targetReceived, targetPos, targetVel)) {
 		people_timeout.setTime(ros::Time::now());
 		if (state == RUNNING && !FORCES.getData().targetFound) {
 			setState(TARGET_LOST);

@@ -149,8 +149,8 @@ public:
 	struct Parameters
 	{
 		Parameters()
-		: forceFactorDesired(1.0), 
-		  forceFactorObstacle(10), 
+		: forceFactorDesired(2.0), 
+		  forceFactorObstacle(40), // 10 
 		  forceSigmaObstacle(0.2),
 		  forceFactorSocial(2.1),  
 		  forceFactorGroupGaze(3.0),
@@ -169,7 +169,7 @@ public:
 		  relaxationTime(0.5),
 		  heuristicPlanner(true),
 		  naiveGoalTime(1.0),
-		  goalRadius(0.25),
+		  goalRadius(1.0), //0.25
 		  obstacleDistanceThreshold(2.0),
 		  personVelocityZeroThreshold(0.05),
 		  targetLookahead(2.0),
@@ -224,7 +224,7 @@ public:
 	bool setRobot(const nav_msgs::Odometry::ConstPtr& odom); 
 	bool setLaser(const sensor_msgs::LaserScan::ConstPtr& laser);
 	bool setXtion(const sensor_msgs::LaserScan::ConstPtr& xtion);
-	bool setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId);
+	bool setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId, bool targetReceived, const utils::Vector2d& targetPos, const utils::Vector2d& targetVel);
 	bool checkCollision(double linearVelocity, double angularVelocity, double& distance, double& time) const;
 	void computeTargetGroupForces(utils::Vector2d& vis, utils::Vector2d& att, utils::Vector2d& rep) const;
 private:
@@ -239,7 +239,7 @@ private:
 	void computeDesiredForce();
 	void selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
 	void computeGroupForce();
-	
+	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
 	Data data;
 	Parameters params;
@@ -607,6 +607,28 @@ void Forces::computeGroupForce()
 
 }
 
+
+bool Forces::transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const
+{
+
+	static tf::TransformListener tf_listener(ros::Duration(10));
+	tf::Stamped<tf::Pose> pose,tfPose;
+	pose.setData(tf::Pose(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(x,y,0)));
+	pose.frame_id_ = sourceFrameId;
+	pose.stamp_ = ros::Time(0);
+	try
+	{
+		tf_listener.transformPose(targetFrameId, pose, tfPose);
+	} catch(std::exception &e) {
+		ROS_ERROR("%s",e.what());
+		return false;
+	}
+	x = tfPose.getOrigin().getX();
+	y = tfPose.getOrigin().getY();
+	return true;
+}
+
+
 inline
 void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
 {
@@ -627,14 +649,24 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 			}
 
 		} else if (data.pathFound) {
+			
 			data.goal = data.followGoal;
 			data.validGoal = true;
 		}
 
 	} else {
 		if (controller_mode == SET_GOAL) {
-			//aStar.getNextPoint(data.robot.position,controller_mode_goal,data.goal);
-			data.goal = controller_mode_goal;			
+			double x = data.robot.position.getX();
+			double y = data.robot.position.getY();
+			transformPoint(x,y, "odom", "map") ;
+			utils::Vector2d a,b;
+			a.set(x,y);
+			utils::Vector2d localGoal;	
+			aStar.getNextPoint(a,controller_mode_goal,b);
+			x = b.getX();
+			y = b.getY();
+			transformPoint(x,y, "map", "odom") ;
+			data.goal.set(x,y);			
 			data.validGoal = true;
 		} else if (data.targetFound && controller_mode != FOLLOW_PATH) {
 			if (controller_mode == LEFT) {
@@ -660,7 +692,7 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 
 
 inline
-bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId)
+bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId, bool targetReceived, const utils::Vector2d& targetPos,const utils::Vector2d& targetVel)
 {
 	if (people->header.frame_id != "/odom" && people->header.frame_id !="odom") {
 		ROS_ERROR("People frame is %s, it should be odom",people->header.frame_id.c_str()); 
@@ -671,14 +703,18 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 	data.pathFound = false;
 	
 	for (unsigned i=0; i< people->personPoses.size(); i++) {
+		
+
 		utils::Vector2d position(people->personPoses[i].position.x,people->personPoses[i].position.y);
 		utils::Angle yaw = utils::Angle::fromRadian(tf::getYaw(people->personPoses[i].orientation));
 		utils::Vector2d velocity(people->personPoses[i].vel * yaw.cos(), people->personPoses[i].vel * yaw.sin());
 		if (fabs(people->personPoses[i].vel) < params.personVelocityZeroThreshold) {
 			velocity.set(0,0);
-		} 	
-		data.socialForce += params.forceFactorSocial*computeSocialForce(position,velocity);
-		if (people->personPoses[i].id == targetId) {
+		} 
+		if (people->personPoses[i].id != targetId || !targetReceived) {
+			data.socialForce += params.forceFactorSocial*computeSocialForce(position,velocity);
+		}	
+		if (people->personPoses[i].id == targetId && !targetReceived) {
 			data.target.position = position;
 			data.target.velocity = velocity;
 			data.target.yaw = yaw;
@@ -711,6 +747,47 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			}
 		}
 	}
+	if (targetReceived) {
+		utils::Vector2d position = targetPos;
+		utils::Angle yaw = targetVel.angle();
+		utils::Vector2d velocity = targetVel;
+		if (targetVel.norm() < params.personVelocityZeroThreshold) {
+			velocity.set(0,0);
+		} 
+		data.socialForce += params.forceFactorSocial*computeSocialForce(position,velocity);
+		data.target.position = position;
+		data.target.velocity = velocity;
+		data.target.yaw = yaw;
+		data.target.linearVelocity = velocity.norm();
+		data.target.angularVelocity = 0;
+		//data.targetFound = true;
+		if (fabs(data.target.linearVelocity) >= params.personVelocityZeroThreshold) {
+			data.leftGoal = 
+			data.target.position + params.naiveGoalTime * data.target.velocity +  
+					velocity.normalized().leftNormalVector();
+			data.rightGoal =
+				  data.target.position + params.naiveGoalTime * data.target.velocity +
+					  velocity.normalized().rightNormalVector();
+			data.behindGoal =
+				  data.target.position + params.naiveGoalTime * data.target.velocity - velocity.normalized();
+		}
+
+
+		if (data.targetHistory.empty() || (position - data.targetHistory.front().position).norm() > 0.5) {
+			data.targetHistory.push_front(data.target);
+			if (data.targetHistory.size()>100) {
+				auto it = data.targetHistory.rbegin();
+				++it;
+				if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
+					data.targetHistory.pop_back();
+				} else {
+					data.targetHistory.pop_front();
+				}
+			}
+		}
+		
+	}	
+
 	for (auto it = data.targetHistory.begin(); it!= data.targetHistory.end(); ++it) {
 		if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
 			data.pathFound = true;

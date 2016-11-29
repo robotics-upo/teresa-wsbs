@@ -158,22 +158,42 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	unsigned action;
 	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
+	bool reset=true;
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
 			
 			action = planner.getAction();
 			likelyGoal = publishGoals(planner.getCurrentBelief());
+			utils::Vector2d target_pos,target_vel;
+			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
+				target_pos += (it->first.target_pos)*(it->second);
+				target_vel += (it->first.target_vel)*(it->second);
+			}
+			target_pos /= planner.getCurrentBelief().size();
+			target_vel /= planner.getCurrentBelief().size();
 			std::cout<<"DEPTH: "<<planner.getDepth()<<" SIZE: "<<planner.size()<<std::endl;
-			mode_srv.request.controller_mode = action;
-			mode_srv.request.goal_x = likelyGoal.getX();
-			mode_srv.request.goal_y = likelyGoal.getY();
-			controller_mode.call(mode_srv);						
+			if (!reset) {
+				mode_srv.request.controller_mode = action;
+				double x = likelyGoal.getX();
+				double y = likelyGoal.getY();
+				//transformPoint(x,y,"map","odom");
+				mode_srv.request.goal_x = x;
+				mode_srv.request.goal_y = y;
+				x = target_pos.getX();
+				y = target_pos.getY();
+				transformPoint(x,y,"map","odom");
+				mode_srv.request.target_pos_x = x;
+				mode_srv.request.target_pos_y = y;
+				mode_srv.request.target_vel_x = target_vel.getX();
+				mode_srv.request.target_vel_y = target_vel.getY();
+				controller_mode.call(mode_srv);	
+			}					
 			r.sleep();	
 			ros::spinOnce();
 			getObservation(obs);
 			std::cout<<obs<<std::endl;			
 			
-			bool reset = planner.moveTo(action,obs);
+			reset = planner.moveTo(action,obs);
 			
 			
 

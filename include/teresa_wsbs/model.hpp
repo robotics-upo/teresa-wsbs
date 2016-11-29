@@ -196,28 +196,22 @@ class AStarPathProvider : public PathProvider
 public:
 	AStarPathProvider()
 	{
-		
-		aStar.addNode("rest_area",38.58,51.56);
-		aStar.addNode("vending_machine",34.99,52.40);
-		aStar.addNode("water_font",29,52.44);
-		aStar.addNode("coffe_area" ,32.34,51.15);
-		aStar.addNode("enter_coffe_area" ,28.73,50.55);
-
-		aStar.addEdge("rest_area" ,"vending_machine");
-		aStar.addEdge("rest_area" ,"water_font");
-		aStar.addEdge("rest_area" ,"coffe_area");
-		aStar.addEdge("rest_area" ,"enter_coffe_area");
-		aStar.addEdge("vending_machine" ,"water_font");
-		aStar.addEdge("vending_machine" ,"coffe_area");
-		aStar.addEdge("vending_machine" ,"enter_coffe_area");
-		aStar.addEdge("water_font" ,"coffe_area");
-		aStar.addEdge("water_font" ,"enter_coffe_area");
-		aStar.addEdge("coffe_area" ,"enter_coffe_area");
-		
+		/*
+		aStar.addNode("A",7,32);
+		aStar.addNode("B",27,7);
+		aStar.addNode("C",52,7);
+		aStar.addNode("D",27,32);
+		aStar.addNode("E",52,32);
+		aStar.addEdge("A","D");
+		aStar.addEdge("D","E");
+		aStar.addEdge("D","B");
+		aStar.addEdge("E","C");
+		*/
 
 		/*
 		aStar.addNode("rest_area",38.58,51.56);
 		aStar.addNode("vending_machine",34.99,52.40);
+		aStar.addNode("toilette","32.13","55.36");	
 		aStar.addNode("water_font",29,52.44);
 		aStar.addNode("reception" ,6.71,52.56);
 		aStar.addNode("robotics_lab" ,12.29,46.43);
@@ -247,6 +241,7 @@ public:
 		aStar.addEdge("vending_machine" ,"coffe_area");
 		aStar.addEdge("vending_machine" ,"enter_coffe_area");
 		aStar.addEdge("water_font" ,"coffe_area");
+		aStar.addEdge("toilette","coffe_area");
 		aStar.addEdge("water_font" ,"enter_coffe_area");
 		aStar.addEdge("coffe_area" ,"enter_coffe_area");
 		aStar.addEdge("enter_coffe_area" ,"enter_corridor_2");
@@ -268,11 +263,13 @@ public:
 		aStar.addEdge("hall" ,"reception");
 		*/
 		
+		
 
 	};
 	virtual ~AStarPathProvider() {}
 	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
 	{
+		/*
 		std::string start_id,goal_id;
 		aStar.getClosestNode(position.getX(),position.getY(),start_id);
 		aStar.getClosestNode(goal.getX(),goal.getY(),goal_id);
@@ -288,6 +285,48 @@ public:
 		aStar.getPos(*it,x,y);
 		nextPoint.set(x,y);
 		return nextPoint;
+		*/
+
+
+		static const utils::Vector2d B(27,7);
+		static const utils::Vector2d C(52,7);
+		static const utils::Vector2d D(27,32);
+		static const utils::Vector2d E(52,32);
+		
+		int area =0 ;
+		if (position.getX()<26.5 && position.getY()>=30) {
+			area=1;
+		} else if (position.getX()>27.5 && position.getX()<51.5 && position.getY()>=30) {
+			area=3;
+		} else if (position.getX()>40) {
+			area=4;
+		} else {
+			area=2;
+		}
+
+		if ( (goal - B).norm()<0.01) {
+			if (area==1 || area  ==3) {
+				nextPoint = D;
+			} else if (area==2) {
+				nextPoint = B;
+			} else {
+				nextPoint = E;
+			}
+		} else if ((goal - C).norm()<0.01) {
+			if (area == 1 || area==3) {
+				nextPoint = E;
+			} else if (area==4) {
+				nextPoint = C;
+			} else if (area == 2 && position.getY()<32.5) {
+				nextPoint = D;
+			} else {
+				nextPoint = E;
+			}
+		} else {
+			nextPoint = goal;
+		}
+		return nextPoint;
+
 	}
 
 private:
@@ -295,7 +334,7 @@ private:
 	
 
 
-	utils::AStar aStar;
+	//utils::AStar aStar;
 
 };
 
@@ -356,7 +395,7 @@ Simulator::Simulator(double discount, double gridCellSize, const std::vector<uti
   naiveGoalTime(1.0),
   alphaFactor(1.0), 
   betaFactor(-1.0),
-  gammaFactor(-1.0)
+  gammaFactor(-100.0)
 {
 	actions.resize(6);
 	actions[0] = LEFT;
@@ -531,7 +570,8 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	}
 	
 	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
-	
+	//reward = getReward(nextState,agents[1].forces.desiredForce.norm());	
+
 	return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
 	//return false;
 }
@@ -551,10 +591,10 @@ double Simulator::getReward(const State& state,double force) const
 inline
 void Simulator::getObservation(const State& state, Observation& observation) const
 {
-	observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,0.5))/gridCellSize);
-	observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,0.5))/gridCellSize);
-	observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,0.5))/gridCellSize);
-	observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,0.5))/gridCellSize);
+	observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
+	observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
+	observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
+	observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
 
 	//observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
 	//observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
@@ -562,7 +602,7 @@ void Simulator::getObservation(const State& state, Observation& observation) con
 	//observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
 
 
-	if ( (state.robot_pos - state.target_pos).norm() > trackingRange) {
+	if (utils::RANDOM()<0.5 || (state.robot_pos - state.target_pos).norm() > trackingRange) {
 		observation.target_hidden = true;
 	} else {
 		observation.target_hidden = false;
@@ -584,7 +624,7 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 {
 	const Action& action = getAction(actionIndex);
 	
-	if (action == FOLLOW_PATH || action == WAIT) {
+	if (action == FOLLOW_PATH  ) {
 		return false;
 	}
 	if (action == BEHIND || action == SET_GOAL) {
@@ -599,6 +639,7 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 	
 	sfm::Map *map = &sfm::MAP;
 	return !map->isObstacle(v);
+	
 
 	
 }

@@ -1,5 +1,9 @@
 uint8 controller_mode
 float64 goal_x
 float64 goal_y
+float64 target_pos_x
+float64 target_pos_y
+float64 target_vel_x
+float64 target_vel_y
 ---
 uint8 error_code
