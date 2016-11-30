@@ -288,24 +288,24 @@ public:
 		*/
 
 
-		static const utils::Vector2d B(27,7);
-		static const utils::Vector2d C(52,7);
-		static const utils::Vector2d D(27,32);
-		static const utils::Vector2d E(52,32);
+		static const utils::Vector2d B(17,7);
+		static const utils::Vector2d C(27,7);
+		static const utils::Vector2d D(17,17);
+		static const utils::Vector2d E(27,17);
 		
 		int area =0 ;
-		if (position.getX()<26.5 && position.getY()>=30) {
+		if (position.getX()<16 && position.getY()>15) {
 			area=1;
-		} else if (position.getX()>27.5 && position.getX()<51.5 && position.getY()>=30) {
+		} else if (position.getX()>18 && position.getX()<26 && position.getY()>15) {
 			area=3;
-		} else if (position.getX()>40) {
+		} else if (position.getX()>22) {
 			area=4;
 		} else {
 			area=2;
 		}
 
-		if ( (goal - B).norm()<0.01) {
-			if (area==1 || area  ==3) {
+		if ( (goal - B).norm()<0.5) {
+			if (area==1 || area  ==3 || (area==4 && position.getY()>16)) {
 				nextPoint = D;
 			} else if (area==2) {
 				nextPoint = B;
@@ -317,7 +317,7 @@ public:
 				nextPoint = E;
 			} else if (area==4) {
 				nextPoint = C;
-			} else if (area == 2 && position.getY()<32.5) {
+			} else if (area == 2 && position.getY()<16) {
 				nextPoint = D;
 			} else {
 				nextPoint = E;
@@ -556,10 +556,10 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	sfm::SFM.updatePosition(agents,dt);
 	
 	
-	nextState.robot_pos = agents[0].position; //+utils::Vector2d(utils::RANDOM(0,1),utils::RANDOM(0,1));
+	nextState.robot_pos = agents[0].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
 	nextState.robot_vel = agents[0].velocity;
 	
-	nextState.target_pos = agents[1].position; //+utils::Vector2d(utils::RANDOM(0,1),utils::RANDOM(0,1));
+	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
 	nextState.target_vel = agents[1].velocity;
 	
 	
@@ -591,18 +591,18 @@ double Simulator::getReward(const State& state,double force) const
 inline
 void Simulator::getObservation(const State& state, Observation& observation) const
 {
-	observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
-	observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
-	observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
-	observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
+	//observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
+	//observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
+	//observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,0.25))/gridCellSize);
+	//observation.target_pos_grid_y = (int)std::round((state.target_pos.getY()+utils::RANDOM(0,0.25))/gridCellSize);
 
-	//observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
-	//observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
-	//observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
-	//observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
+	observation.robot_pos_grid_x = (int)std::round(state.robot_pos.getX()/gridCellSize);
+	observation.robot_pos_grid_y = (int)std::round(state.robot_pos.getY()/gridCellSize);
+	observation.target_pos_grid_x = (int)std::round(state.target_pos.getX()/gridCellSize);
+	observation.target_pos_grid_y = (int)std::round(state.target_pos.getY()/gridCellSize);
 
-
-	if (utils::RANDOM()<0.5 || (state.robot_pos - state.target_pos).norm() > trackingRange) {
+	
+	if (utils::RANDOM()<0.1 || (state.robot_pos - state.target_pos).norm() > trackingRange) {
 		observation.target_hidden = true;
 	} else {
 		observation.target_hidden = false;
@@ -624,7 +624,7 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 {
 	const Action& action = getAction(actionIndex);
 	
-	if (action == FOLLOW_PATH  ) {
+	if (action == FOLLOW_PATH || action==WAIT ) {
 		return false;
 	}
 	if (action == BEHIND || action == SET_GOAL) {

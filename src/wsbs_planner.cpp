@@ -107,18 +107,18 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	
 	pn.param<std::string>("goals_file",goals_file,"");
 	pn.param<std::string>("paths_file",paths_file,"");
-	pn.param<double>("freq",freq,0.5); 
+	pn.param<double>("freq",freq,2.0); //0.5
 	pn.param<double>("discount",discount,0.75);
 	pn.param<double>("cell_size",cell_size,1.0);
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<double>("timeout",timeout,1.0);
+	pn.param<double>("timeout",timeout,0.2); //1.0
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,200);
 	pn.param<double>("goal_radius",goal_radius,1.0);
-	pn.param<double>("running_time",running_time,2.0);
+	pn.param<double>("running_time",running_time,0.5); // 2.0
 	
 
 	TiXmlDocument xml_doc(goals_file);
@@ -151,6 +151,16 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	
 	ros::Rate r(freq);
 	
+	teresa_wsbs::start srv;
+	srv.request.target_id=1;
+	bool success= controller_start.call(srv);
+	targetId = 1;
+	while(!success) {
+		success= controller_start.call(srv);
+	}
+	
+
+
 
 	simulator = new model::Simulator(discount,cell_size,goals,pathProvider,tracking_range,goal_radius,running_time);
 	pomcp::PomcpPlanner<model::State,model::Observation,model::Action> planner(*simulator,timeout,threshold,exploration_constant);
@@ -194,14 +204,14 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			std::cout<<obs<<std::endl;			
 			
 			reset = planner.moveTo(action,obs);
-			
+			/*std::cout<<"--- "<< planner.getCurrentBelief().size()<<" --"<<std::endl;
+			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
+				std::cout<<(it->first.target_pos)<<" "<<(it->first.robot_pos)<<(it->second)<<std::endl;
+			}*/
 			
 
 			std::cout<<"RESET: "<<reset<<std::endl;
-			/*std::cout<<"--- "<< planner.getCurrentBelief().size()<<" --"<<std::endl;
-			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
-				std::cout<<it->second<<std::endl;
-			}*/
+			
 		} else {
 			r.sleep();	
 			ros::spinOnce();

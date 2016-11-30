@@ -150,7 +150,7 @@ public:
 	{
 		Parameters()
 		: forceFactorDesired(2.0), 
-		  forceFactorObstacle(40), // 10 
+		  forceFactorObstacle(10),  
 		  forceSigmaObstacle(0.2),
 		  forceFactorSocial(2.1),  
 		  forceFactorGroupGaze(3.0),
@@ -751,6 +751,7 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 		utils::Vector2d position = targetPos;
 		utils::Angle yaw = targetVel.angle();
 		utils::Vector2d velocity = targetVel;
+		
 		if (targetVel.norm() < params.personVelocityZeroThreshold) {
 			velocity.set(0,0);
 		} 
@@ -760,7 +761,7 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 		data.target.yaw = yaw;
 		data.target.linearVelocity = velocity.norm();
 		data.target.angularVelocity = 0;
-		//data.targetFound = true;
+		data.targetFound = true;
 		if (fabs(data.target.linearVelocity) >= params.personVelocityZeroThreshold) {
 			data.leftGoal = 
 			data.target.position + params.naiveGoalTime * data.target.velocity +  
