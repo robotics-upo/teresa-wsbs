@@ -33,14 +33,10 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
-
+#include <teresa_wsbs/Info.h>
 
 namespace wsbs
 {
-
-
-
-
 
 class Controller
 {
@@ -126,12 +122,15 @@ private:
 	
 	unsigned targetId;
 	ControllerMode controller_mode;
+	utils::Vector2d controller_mode_goal;
 	
-	ros::Publisher markers_pub;
+	ros::Publisher robot_markers_pub;
+	ros::Publisher target_markers_pub;
 	ros::Publisher path_pub;
 	ros::Publisher goal_pub;
 	ros::Publisher trajectories_pub;
 	ros::Publisher status_pub;
+	ros::Publisher forces_pub;
 
 	ros::ServiceClient leds_client;
 
@@ -144,13 +143,17 @@ private:
 	int number_of_leds;
 
 	utils::Vector2d currentGoal;
+	utils::Vector2d targetPos;
+	utils::Vector2d targetVel;
+	bool targetReceived;
 };
 
 
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 :  state(WAITING_FOR_START),
    controller_mode(RIGHT),
-   is_finishing(false)
+   is_finishing(false),
+   targetReceived(false)
 {
 
 	double odom_timeout_threshold;
@@ -183,7 +186,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
 	pn.param<double>("people_timeout",people_timeout_threshold,2.0);
 	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
-	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,20);
+	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,200);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
@@ -191,8 +194,17 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_planner",FORCES.getParams().heuristicPlanner, true);
 
-	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Controller::start,this);
-	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Controller::stop,this);
+	std::string start_service_name, stop_service_name;
+	if (FORCES.getParams().heuristicPlanner) {
+		start_service_name = "/wsbs/start";
+		stop_service_name = "/wsbs/stop";
+	} else {
+		start_service_name = "/wsbs/controller/start";
+		stop_service_name = "/wsbs/controller/stop";
+	}
+
+	ros::ServiceServer start_srv = n.advertiseService(start_service_name, &Controller::start,this);
+	ros::ServiceServer stop_srv  = n.advertiseService(stop_service_name, &Controller::stop,this);
 	ros::ServiceServer select_id_srv  = n.advertiseService("/wsbs/select_target_id", &Controller::selectTargetId,this);	
 	ros::ServiceServer select_mode_srv  = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
 
@@ -209,10 +221,13 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
-	markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
+	robot_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
+	target_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/target_forces", 1);
+	forces_pub = pn.advertise<teresa_wsbs::Info>("/wsbs/controller/info", 1);
 	path_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/target_path", 1);
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
 	trajectories_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/trajectories", 1);
+	
 
 	odom_timeout.setId(odom_id);
 	odom_timeout.setTimeout(odom_timeout_threshold);
@@ -249,7 +264,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
-			FORCES.compute(controller_mode);
+			FORCES.compute(controller_mode, controller_mode_goal);
 			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
 			//finishing = CMD_VEL.compute(dt);
 			cmd_vel_pub.publish(CMD_VEL.getCommand());
@@ -469,6 +484,14 @@ bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs:
 	} else {
 		ROS_INFO("Controller mode is %d",req.controller_mode);
 		controller_mode = (ControllerMode)req.controller_mode;
+		if (controller_mode == SET_GOAL) {
+			controller_mode_goal.set(req.goal_x,req.goal_y);
+			ROS_INFO("Controller mode goal: (%lf, %lf)",controller_mode_goal.getX(), controller_mode_goal.getY());
+		}
+		targetPos.set(req.target_pos_x,req.target_pos_y);
+		targetVel.set(req.target_vel_x,req.target_vel_y);
+		targetReceived = true;
+		
 		res.error_code = 0;
 	}
 	return true;
@@ -563,7 +586,71 @@ void Controller::publishForces()
 	publishForceMarker(3,getColor(1,0,0,1),FORCES.getData().desiredForce,markers);	
 	//publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().globalForce,markers);	
 	publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().velocityRef,markers);	
-	markers_pub.publish(markers);
+	robot_markers_pub.publish(markers);
+
+
+	teresa_wsbs::Info forces;
+	forces.header.frame_id = "/odom";
+	forces.header.stamp = ros::Time::now();
+
+	forces.status = (uint8_t)state;
+	forces.mode = (uint8_t)controller_mode;
+	forces.target_detected = FORCES.getData().targetFound;
+
+	forces.target_pose.x = FORCES.getData().target.position.getX();
+	forces.target_pose.y = FORCES.getData().target.position.getY();
+	forces.target_pose.theta = FORCES.getData().target.yaw.toRadian();
+
+	forces.target_pose.x = FORCES.getData().robot.position.getX();
+	forces.target_pose.y = FORCES.getData().robot.position.getY();
+	forces.target_pose.theta = FORCES.getData().robot.yaw.toRadian();
+
+	forces.target_lin_vel = FORCES.getData().target.linearVelocity;
+	
+	forces.robot_lin_vel = FORCES.getData().robot.linearVelocity;
+	forces.robot_ang_vel = FORCES.getData().robot.angularVelocity;
+
+
+	forces.robot_local_goal.x = FORCES.getData().goal.getX();
+	forces.robot_local_goal.y = FORCES.getData().goal.getY();
+	forces.robot_antimove =  FORCES.getData().validGoal;
+
+	utils::Vector2d vis, att, rep, group;
+
+	FORCES.computeTargetGroupForces(vis, att, rep);
+
+	group = vis + att + rep;
+
+	forces.target_group_force.x =  group.getX();
+	forces.target_group_force.y =  group.getY();	
+	forces.target_group_vis_force.x = vis.getX();
+	forces.target_group_vis_force.y = vis.getY();
+	forces.target_group_att_force.x = att.getX();
+	forces.target_group_att_force.y = att.getY();
+	forces.target_group_rep_force.x = rep.getX();
+	forces.target_group_rep_force.y = rep.getY();
+
+
+	forces.robot_global_force.x = FORCES.getData().globalForce.getX();
+	forces.robot_global_force.y = FORCES.getData().globalForce.getY();
+	forces.robot_desired_force.x = FORCES.getData().desiredForce.getX();
+	forces.robot_desired_force.y = FORCES.getData().desiredForce.getY();
+	forces.robot_obstacle_force.x = FORCES.getData().obstacleForce.getX();
+	forces.robot_obstacle_force.y = FORCES.getData().obstacleForce.getY();
+	forces.robot_social_force.x = FORCES.getData().socialForce.getX();
+	forces.robot_social_force.y = FORCES.getData().socialForce.getY();
+	forces.robot_group_force.x =  FORCES.getData().groupForce.getX();
+	forces.robot_group_force.y =  FORCES.getData().groupForce.getY();	
+	forces.robot_group_vis_force.x = FORCES.getData().groupGazeForce.getX();
+	forces.robot_group_vis_force.y = FORCES.getData().groupGazeForce.getY();
+	forces.robot_group_att_force.x = FORCES.getData().groupCoherenceForce.getX();
+	forces.robot_group_att_force.y = FORCES.getData().groupCoherenceForce.getY();
+	forces.robot_group_rep_force.x = FORCES.getData().groupRepulsionForce.getX();
+	forces.robot_group_rep_force.y = FORCES.getData().groupRepulsionForce.getY();
+	forces.robot_vref.x = FORCES.getData().velocityRef.getX();
+	forces.robot_vref.y = FORCES.getData().velocityRef.getY();
+
+	forces_pub.publish(forces);
 }
 
 
@@ -662,7 +749,7 @@ void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& pe
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (FORCES.setPeople(people, targetId)) {
+	if (FORCES.setPeople(people, targetId, targetReceived, targetPos, targetVel)) {
 		people_timeout.setTime(ros::Time::now());
 		if (state == RUNNING && !FORCES.getData().targetFound) {
 			setState(TARGET_LOST);

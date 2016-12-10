@@ -1,23 +1,11 @@
 <!-- -*- mode: XML -*- -->
 
 <launch>
-
-  	 <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
-		<rosparam file="$(find teresa_wsbs)cfg/costmap_common_params.yaml" command="load" ns="global_costmap" />
-		<rosparam file="$(find teresa_wsbs)cfg/costmap_common_params.yaml" command="load" ns="local_costmap" />
-		<rosparam file="$(find teresa_wsbs)cfg/local_costmap_params.yaml" command="load" />
-		<rosparam file="$(find teresa_wsbs)cfg/global_costmap_params.yaml" command="load" />
-		<rosparam file="$(find teresa_wsbs)cfg/navigation_params.yaml" command="load" />
-		<param name="recovery_behavior_enabled" type="bool" value="true" /> 
-		<param name="clearing_rotation_allowed" type="bool" value="true" /><!--default=true--> 
-		<param name="shutdown_costmaps" value="false" /> 
-		<param name="restore_defaults" value="false" />	
-		<param name="oscillation_timeout" type="double" value="0.0" /> <!--default=0.0-->
-		<param name="oscillation_distance" type="double" value="0.5" /> <!--default=0.5-->	
-  </node>
+	<master auto="start"/>
 
 	<node pkg="teresa_wsbs" type="wsbs_planner" name="wsbs_planner" output="screen" respawn="false">
-		<param name="goals_file" value="$(find teresa_wsbs)maps/corridor_goals.xml"/>
+		<param name="goals_file" value="$(find teresa_wsbs)maps/test_goals.xml"/>
+		<!--<param name="paths_file" value="$(find teresa_wsbs)maps/upo45_paths.txt"/>-->
 	</node>
    
 

@@ -43,9 +43,14 @@ CmdVel::CmdVel()
 {
 
 	
-	static const std::vector<double> ang_vels = {-0.8, -0.75, -0.7, -0.65, -0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8};
-	//static const std::vector<double> lin_vels = {-0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5};
-	static const std::vector<double> lin_vels = {-0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5};
+	static const std::vector<double> ang_vels = 
+		{-0.8, -0.75, -0.7, -0.65, -0.6, -0.55, -0.5, -0.45, -0.4, 
+		-0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 
+		0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8};
+	
+	static const std::vector<double> lin_vels = 
+		{-0.6, -0.55, -0.5, -0.45, -0.4, -0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 
+		0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6};
 
 
 
@@ -129,18 +134,18 @@ bool CmdVel::compute(double dt)
 	
 	utils::Vector2d positionRef;
 	utils::Angle yawRef;
-	if (FORCES.getData().targetFound) {
-		std::cout<< "DIS: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
-		std::cout<< "Vref: "<<velocityRef.norm()<<std::endl;
-	}
-	if ( FORCES.getData().targetFound && 
+	//if (FORCES.getData().targetFound) {
+	//	std::cout<< "DIS: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
+	//	std::cout<< "Vref: "<<velocityRef.norm()<<std::endl;
+	//}
+	if ( FORCES.getData().targetFound &&
 		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= FORCES.getParams().targetLookahead &&
-		 velocityRef.norm()<0.1) {
+		velocityRef.norm()<0.1) {
 		velocityRef.set(0,0);
 		positionRef = FORCES.getData().robot.position;
 		yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
 		finishing = true;
-	
+
 	} else {
 		if (velocityRef.norm() > FORCES.getParams().robotMaxLinearVelocity) {
 			velocityRef.normalize();
@@ -155,7 +160,7 @@ bool CmdVel::compute(double dt)
 	double min = 999999999;
 	double robot_lin_vel = FORCES.getData().robot.linearVelocity;
 	double robot_ang_vel = FORCES.getData().robot.angularVelocity;
-	
+
 	double distance=0;
 	double time = 0;
 	ros::Time current_time = ros::Time::now();
@@ -176,10 +181,8 @@ bool CmdVel::compute(double dt)
 			markers.markers[i].color.a = 1.0;
 			continue;
 		}
-		
-		
 		if (FORCES.checkCollision(linVel, angVel,distance,time)) {
-			unsigned size = std::min(30u,(unsigned)std::round(time * 10.0)); 	
+			unsigned size = std::min(30u,(unsigned)std::round(time * 10.0));
 			markers.markers[i].points.assign(full_markers.markers[i].points.begin(),full_markers.markers[i].points.begin()+size);
 			markers.markers[i].color.r = 0.0;
 			markers.markers[i].color.g = 1.0;

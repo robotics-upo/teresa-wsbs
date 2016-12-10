@@ -44,6 +44,7 @@
   <build_depend>roscpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>std_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
   <build_depend>upo_msgs</build_depend>
   <build_depend>tinyxml</build_depend>
   <build_depend>cmake_modules</build_depend>
@@ -53,6 +54,7 @@
   <run_depend>roscpp</run_depend>
   <run_depend>sensor_msgs</run_depend>
   <run_depend>std_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
   <run_depend>upo_msgs</run_depend>
   <run_depend>tf</run_depend>
 

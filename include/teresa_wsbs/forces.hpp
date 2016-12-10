@@ -38,6 +38,7 @@
 #include <limits>
 #include <algorithm>
 #include <lightsfm/vector2d.hpp>
+#include <teresa_wsbs/model.hpp>
 
 namespace wsbs
 {
@@ -73,7 +74,8 @@ enum ControllerMode {
 	RIGHT		= 1,
 	BEHIND		= 2,
 	FOLLOW_PATH	= 3,
-	WAIT		= 4
+	WAIT		= 4,
+	SET_GOAL	= 5
 };
 
 
@@ -147,17 +149,16 @@ public:
 	struct Parameters
 	{
 		Parameters()
-		: forceFactorDesired(1.0), 
-		  forceFactorObstacle(10), 
+		: forceFactorDesired(2.0), 
+		  forceFactorObstacle(10),  
 		  forceSigmaObstacle(0.2),
 		  forceFactorSocial(2.1),  
 		  forceFactorGroupGaze(3.0),
 		  forceFactorGroupCoherence(2.0),
 		  forceFactorGroupRepulsion(1.0),
-		  robotRadius(0.4),
-		  robotMass(25),
-		  personRadius(0.4),
-		  robotMaxLinearVelocity(0.5), // 0.3
+		  robotRadius(0.35),
+		  personRadius(0.35),
+		  robotMaxLinearVelocity(0.6), // 0.5 0.3
 		  robotMaxAngularVelocity(0.8),
 		  robotMaxLinearAcceleration(1.0), 
 		  robotMaxAngularAcceleration(1.0), 
@@ -168,7 +169,7 @@ public:
 		  relaxationTime(0.5),
 		  heuristicPlanner(true),
 		  naiveGoalTime(1.0),
-		  goalRadius(0.25),
+		  goalRadius(1.0), //0.25
 		  obstacleDistanceThreshold(2.0),
 		  personVelocityZeroThreshold(0.05),
 		  targetLookahead(2.0),
@@ -184,7 +185,6 @@ public:
 		double forceFactorGroupCoherence;
 		double forceFactorGroupRepulsion;
 		double robotRadius;
-		double robotMass;
 		double personRadius;
 		double robotMaxLinearVelocity;
 		double robotMaxAngularVelocity;
@@ -220,14 +220,13 @@ public:
 	Parameters& getParams() {return params;}
 	const Parameters& getParams() const {return params;}
 	void reset();
-	void compute(ControllerMode controller_mode);
+	void compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
 	bool setRobot(const nav_msgs::Odometry::ConstPtr& odom); 
 	bool setLaser(const sensor_msgs::LaserScan::ConstPtr& laser);
 	bool setXtion(const sensor_msgs::LaserScan::ConstPtr& xtion);
-	bool setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId);
+	bool setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId, bool targetReceived, const utils::Vector2d& targetPos, const utils::Vector2d& targetVel);
 	bool checkCollision(double linearVelocity, double angularVelocity, double& distance, double& time) const;
-	
-
+	void computeTargetGroupForces(utils::Vector2d& vis, utils::Vector2d& att, utils::Vector2d& rep) const;
 private:
 
 	static bool compareNorm(const Obstacle& i, const Obstacle& j) {return i.center.squaredNorm() < j.center.squaredNorm();}
@@ -238,9 +237,9 @@ private:
 	void computeObstacleForceSum(const sensor_msgs::LaserScan::ConstPtr& scan, utils::Vector2d& forceSum, unsigned& points, std::vector<Obstacle>& obstacles) const;
 	utils::Vector2d computeSocialForce(const utils::Vector2d& position, const utils::Vector2d& velocity) const;
 	void computeDesiredForce();
-	void selectGoal(ControllerMode controller_mode);
+	void selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
 	void computeGroupForce();
-	
+	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
 	Data data;
 	Parameters params;
@@ -374,7 +373,7 @@ void Agent::move(double dt)
 }
 
 inline
-void Forces::compute(ControllerMode controller_mode)
+void Forces::compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
 {
 	if (laserPoints==0 && xtionPoints==0) {
 		data.obstacleForce.set(0,0);
@@ -385,7 +384,7 @@ void Forces::compute(ControllerMode controller_mode)
 		data.obstacles.insert(data.obstacles.end(), xtionObstacles.begin(), xtionObstacles.end());
 		std::sort(data.obstacles.begin(),data.obstacles.end(),compareNorm);
 	}
-	selectGoal(controller_mode);
+	selectGoal(controller_mode, controller_mode_goal);
 	computeDesiredForce();
 	computeGroupForce();
 	data.globalForce = data.desiredForce + data.obstacleForce + data.socialForce + data.groupForce;
@@ -458,6 +457,7 @@ inline
 void Forces::computeDesiredForce()
 {
 	if (data.validGoal) {
+		
 		double vel = params.robotMaxLinearVelocity;
 		if (data.targetFound) {
 			if ((data.robot.position - data.target.position).norm() <= FORCES.getParams().targetLookahead) {
@@ -494,6 +494,7 @@ void Forces::computeDesiredForce()
 			data.desiredForce = -data.robot.velocity / params.relaxationTime;
 			data.desiredDirection.set(0,0);
 		}
+		
 	} else {
 		data.desiredForce = -data.robot.velocity / params.relaxationTime;
 		data.desiredDirection.set(0,0);
@@ -502,6 +503,51 @@ void Forces::computeDesiredForce()
 
 
 }
+
+
+inline
+void Forces::computeTargetGroupForces(utils::Vector2d& vis, utils::Vector2d& att, utils::Vector2d& rep) const
+{
+	vis.set(0,0);
+	att.set(0,0);
+	rep.set(0,0);
+
+	if (!data.targetFound) {
+		return;
+	}
+
+	// Gaze force
+	if (data.target.velocity.norm() > 0.01) {
+		utils::Vector2d desiredDirection = data.target.velocity.normalized();
+		utils::Vector2d relativeCom =  data.robot.position - data.target.position;
+		utils::Angle visionAngle = utils::Angle::fromDegree(90);
+		double elementProduct = desiredDirection.dot(relativeCom);
+		utils::Angle comAngle = utils::Angle::fromRadian(std::acos(elementProduct / (desiredDirection.norm() * relativeCom.norm())));
+		if (comAngle > visionAngle) {
+			double desiredDirectionSquared = desiredDirection.squaredNorm();
+			double desiredDirectionDistance = elementProduct / desiredDirectionSquared;
+			vis = desiredDirectionDistance * desiredDirection;
+			vis *= params.forceFactorGroupGaze;
+		}
+	}
+	// Coherence force
+	utils::Vector2d com = (data.target.position + data.robot.position)*0.5;
+	utils::Vector2d relativeCom = com - data.target.position;
+	double cohDistance = relativeCom.norm();
+	att = relativeCom;
+	double softenedFactor = params.forceFactorGroupCoherence * (std::tanh(cohDistance - 0.5) + 1) / 2;
+	att *= softenedFactor;
+	
+	// Repulsion Force
+	utils::Vector2d diff = data.target.position - data.robot.position;
+	double repDistance = diff.norm();
+	if (repDistance < params.robotRadius + params.personRadius) {
+		rep += diff;
+	}
+	rep *= params.forceFactorGroupRepulsion;
+}
+
+
 
 inline
 void Forces::computeGroupForce()
@@ -559,14 +605,34 @@ void Forces::computeGroupForce()
 
 	data.groupForce =  data.groupGazeForce +  data.groupCoherenceForce + data.groupRepulsionForce;
 
-
-	
 }
 
-inline
-void Forces::selectGoal(ControllerMode controller_mode)
+
+bool Forces::transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const
 {
-	
+
+	static tf::TransformListener tf_listener(ros::Duration(10));
+	tf::Stamped<tf::Pose> pose,tfPose;
+	pose.setData(tf::Pose(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(x,y,0)));
+	pose.frame_id_ = sourceFrameId;
+	pose.stamp_ = ros::Time(0);
+	try
+	{
+		tf_listener.transformPose(targetFrameId, pose, tfPose);
+	} catch(std::exception &e) {
+		ROS_ERROR("%s",e.what());
+		return false;
+	}
+	x = tfPose.getOrigin().getX();
+	y = tfPose.getOrigin().getY();
+	return true;
+}
+
+
+inline
+void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
+{
+	static  model::AStarPathProvider aStar;
 
 	// By default, if the goal is not valid, it will perform an antimove
 	data.validGoal = false;
@@ -583,12 +649,26 @@ void Forces::selectGoal(ControllerMode controller_mode)
 			}
 
 		} else if (data.pathFound) {
+			
 			data.goal = data.followGoal;
 			data.validGoal = true;
 		}
 
 	} else {
-		if (data.targetFound && controller_mode != FOLLOW_PATH) {
+		if (controller_mode == SET_GOAL) {
+			double x = data.robot.position.getX();
+			double y = data.robot.position.getY();
+			transformPoint(x,y, "odom", "map") ;
+			utils::Vector2d a,b;
+			a.set(x,y);
+			utils::Vector2d localGoal;	
+			aStar.getNextPoint(a,controller_mode_goal,b);
+			x = b.getX();
+			y = b.getY();
+			transformPoint(x,y, "map", "odom") ;
+			data.goal.set(x,y);			
+			data.validGoal = true;
+		} else if (data.targetFound && controller_mode != FOLLOW_PATH) {
 			if (controller_mode == LEFT) {
 				data.goal = data.leftGoal;
 				data.validGoal = true;
@@ -612,7 +692,7 @@ void Forces::selectGoal(ControllerMode controller_mode)
 
 
 inline
-bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId)
+bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, unsigned targetId, bool targetReceived, const utils::Vector2d& targetPos,const utils::Vector2d& targetVel)
 {
 	if (people->header.frame_id != "/odom" && people->header.frame_id !="odom") {
 		ROS_ERROR("People frame is %s, it should be odom",people->header.frame_id.c_str()); 
@@ -623,14 +703,18 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 	data.pathFound = false;
 	
 	for (unsigned i=0; i< people->personPoses.size(); i++) {
+		
+
 		utils::Vector2d position(people->personPoses[i].position.x,people->personPoses[i].position.y);
 		utils::Angle yaw = utils::Angle::fromRadian(tf::getYaw(people->personPoses[i].orientation));
 		utils::Vector2d velocity(people->personPoses[i].vel * yaw.cos(), people->personPoses[i].vel * yaw.sin());
 		if (fabs(people->personPoses[i].vel) < params.personVelocityZeroThreshold) {
 			velocity.set(0,0);
-		} 	
-		data.socialForce += params.forceFactorSocial*computeSocialForce(position,velocity);
-		if (people->personPoses[i].id == targetId) {
+		} 
+		if (people->personPoses[i].id != targetId || !targetReceived) {
+			data.socialForce += params.forceFactorSocial*computeSocialForce(position,velocity);
+		}	
+		if (people->personPoses[i].id == targetId && !targetReceived) {
 			data.target.position = position;
 			data.target.velocity = velocity;
 			data.target.yaw = yaw;
@@ -663,6 +747,48 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			}
 		}
 	}
+	if (targetReceived) {
+		utils::Vector2d position = targetPos;
+		utils::Angle yaw = targetVel.angle();
+		utils::Vector2d velocity = targetVel;
+		
+		if (targetVel.norm() < params.personVelocityZeroThreshold) {
+			velocity.set(0,0);
+		} 
+		data.socialForce += params.forceFactorSocial*computeSocialForce(position,velocity);
+		data.target.position = position;
+		data.target.velocity = velocity;
+		data.target.yaw = yaw;
+		data.target.linearVelocity = velocity.norm();
+		data.target.angularVelocity = 0;
+		data.targetFound = true;
+		if (fabs(data.target.linearVelocity) >= params.personVelocityZeroThreshold) {
+			data.leftGoal = 
+			data.target.position + params.naiveGoalTime * data.target.velocity +  
+					velocity.normalized().leftNormalVector();
+			data.rightGoal =
+				  data.target.position + params.naiveGoalTime * data.target.velocity +
+					  velocity.normalized().rightNormalVector();
+			data.behindGoal =
+				  data.target.position + params.naiveGoalTime * data.target.velocity - velocity.normalized();
+		}
+
+
+		if (data.targetHistory.empty() || (position - data.targetHistory.front().position).norm() > 0.5) {
+			data.targetHistory.push_front(data.target);
+			if (data.targetHistory.size()>100) {
+				auto it = data.targetHistory.rbegin();
+				++it;
+				if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
+					data.targetHistory.pop_back();
+				} else {
+					data.targetHistory.pop_front();
+				}
+			}
+		}
+		
+	}	
+
 	for (auto it = data.targetHistory.begin(); it!= data.targetHistory.end(); ++it) {
 		if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
 			data.pathFound = true;
