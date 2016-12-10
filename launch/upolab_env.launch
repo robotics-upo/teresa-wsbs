@@ -23,7 +23,7 @@
 
 
   <!-- Run the map server -->
-  <node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/upo_lab/maps/upo_lab.yaml" />
+  <node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/upo_lab/maps/upo45.yaml" />
 
   <!--- amcl -->
   <!--<node pkg="amcl" type="amcl" name="amcl" args="scan:=/scan360_filtered">-->

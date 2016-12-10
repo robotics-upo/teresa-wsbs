@@ -135,7 +135,7 @@ bool CmdVel::compute(double dt)
 	}
 	if ( FORCES.getData().targetFound && 
 		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= FORCES.getParams().targetLookahead &&
-		 FORCES.getData().velocity.norm()<0.1/*velocityRef.norm()<0.1*/) {
+		 velocityRef.norm()<0.1) {
 		velocityRef.set(0,0);
 		positionRef = FORCES.getData().robot.position;
 		yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
@@ -149,7 +149,7 @@ bool CmdVel::compute(double dt)
 		positionRef = FORCES.getData().robot.position + velocityRef * dt;
 		yawRef = velocityRef.angle();
 		finishing = false;
-	//}
+	}
 	command.linear.x = 0;
 	command.angular.z = 0;
 	double min = 999999999;
