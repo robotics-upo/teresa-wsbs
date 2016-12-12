@@ -208,11 +208,13 @@ public:
 		aStar.addEdge("E","C");
 		*/
 
-		
 		aStar.addNode("rest_area",38.58,51.56);
 		aStar.addNode("vending_machine",34.99,52.40);
-		aStar.addNode("toilette",32.13,55.36);	
+		aStar.addNode("enter_coffe_area" ,28.73,50.55);
 		aStar.addNode("water_font",29,52.44);
+		aStar.addNode("coffe_area" ,32.34,51.15);
+
+		/*
 		aStar.addNode("reception" ,6.71,52.56);
 		aStar.addNode("robotics_lab" ,12.29,46.43);
 		aStar.addNode("classroom_1" ,26.72,47.75);
@@ -222,8 +224,8 @@ public:
 		aStar.addNode("classroom_3_2" ,26.56,31.40);
 		aStar.addNode("exit_1" ,7.84,31.96);
 		aStar.addNode("exit_2" ,24.39,26.63);
-		aStar.addNode("coffe_area" ,32.34,51.15);
-		aStar.addNode("enter_coffe_area" ,28.73,50.55);
+		aStar.addNode("toilette",32.13,55.36);	
+		
 		aStar.addNode("enter_corridor_1" ,7.73,50.58);
 		aStar.addNode("enter_corridor_2" ,24.75,50.31);
 		aStar.addNode("hall" ,5.53,51.86);
@@ -232,6 +234,8 @@ public:
 		aStar.addNode("corridor_2_a" ,24.56,47.51);
 		aStar.addNode("corridor_2_b" ,24.56,47.51);
 		aStar.addNode("corridor_2_c" ,24.31,32.10);
+		aStar.addEdge("toilette","coffe_area");		
+		*/
 
 		aStar.addEdge("rest_area" ,"vending_machine");
 		aStar.addEdge("rest_area" ,"water_font");
@@ -241,10 +245,11 @@ public:
 		aStar.addEdge("vending_machine" ,"coffe_area");
 		aStar.addEdge("vending_machine" ,"enter_coffe_area");
 		aStar.addEdge("water_font" ,"coffe_area");
-		aStar.addEdge("toilette","coffe_area");
 		aStar.addEdge("water_font" ,"enter_coffe_area");
 		aStar.addEdge("coffe_area" ,"enter_coffe_area");
+		/*
 		aStar.addEdge("enter_coffe_area" ,"enter_corridor_2");
+		
 		aStar.addEdge("enter_corridor_2" ,"corridor_2_a");
 		aStar.addEdge("corridor_2_a" ,"classroom_1");
 		aStar.addEdge("corridor_2_a" ,"corridor_2_b");
@@ -261,6 +266,7 @@ public:
 		aStar.addEdge("enter_lab" ,"exit_1");
 		aStar.addEdge("enter_corridor_1" ,"hall");
 		aStar.addEdge("hall" ,"reception");
+		*/
 		
 		
 		
