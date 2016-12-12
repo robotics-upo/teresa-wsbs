@@ -69,7 +69,7 @@ private:
 	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 	bool transformPose(double& x, double& y, double& theta, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
-	utils::Vector2d publishGoals(const utils::Multiset<model::State>& belief) const;
+	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief) const;
 
 	void readGoals(TiXmlNode *pParent);
 	
@@ -151,13 +151,13 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	
 	ros::Rate r(freq);
 	
-	teresa_wsbs::start srv;
-	srv.request.target_id=1;
-	bool success= controller_start.call(srv);
-	targetId = 1;
-	while(!success) {
-		success= controller_start.call(srv);
-	}
+	//teresa_wsbs::start srv;
+	//srv.request.target_id=1;
+	//bool success= controller_start.call(srv);
+	//targetId = 1;
+	//while(!success) {
+	//	success= controller_start.call(srv);
+	//}
 	
 
 
@@ -169,19 +169,21 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
 	bool reset=true;
+	unsigned size,depth;
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
 			
 			action = planner.getAction();
 			likelyGoal = publishGoals(planner.getCurrentBelief());
 			utils::Vector2d target_pos,target_vel;
-			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
-				target_pos += (it->first.target_pos)*(it->second);
-				target_vel += (it->first.target_vel)*(it->second);
+			for (auto it = planner.getCurrentBelief().getParticles().begin(); it != planner.getCurrentBelief().getParticles().end(); ++it) {
+				target_pos += (it->target_pos);
+				target_vel += (it->target_vel);
 			}
 			target_pos /= planner.getCurrentBelief().size();
 			target_vel /= planner.getCurrentBelief().size();
-			std::cout<<"DEPTH: "<<planner.getDepth()<<" SIZE: "<<planner.size()<<std::endl;
+			planner.computeInfo(size,depth);
+			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
 			if (!reset) {
 				mode_srv.request.controller_mode = action;
 				double x = likelyGoal.getX();
@@ -227,14 +229,16 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 
 
-utils::Vector2d Planner::publishGoals(const utils::Multiset<model::State>& belief) const
+utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& belief) const
 {
+	utils::Vector2d likelyGoal;
+	
 	std::map<utils::Vector2d, double> goals;
-	for (auto it = belief.data().cbegin(); it!= belief.data().cend(); ++it) {
-		if (goals.count(it->first.goal)==0) {
-			goals[it->first.goal]  = (double)(it->second)/(double)(belief.size());
+	for (auto it = belief.getParticles().cbegin(); it!= belief.getParticles().cend(); ++it) {
+		if (goals.count(it->goal)==0) {
+			goals[it->goal]  = 1.0/(double)(belief.size());
 		} else {
-			goals[it->first.goal] += (double)(it->second)/(double)(belief.size());
+			goals[it->goal] += 1.0/(double)(belief.size());
 		}
 	}
 
@@ -244,7 +248,7 @@ utils::Vector2d Planner::publishGoals(const utils::Multiset<model::State>& belie
 		}
 	
 	}
-	utils::Vector2d likelyGoal;
+	
 	double max=0;
 	int index=0;
 	visualization_msgs::MarkerArray goal_markers; 
@@ -274,6 +278,8 @@ utils::Vector2d Planner::publishGoals(const utils::Multiset<model::State>& belie
 		}
 	}
 	goal_markers_pub.publish(goal_markers);	
+	
+	
 	return likelyGoal;
 
 }

@@ -208,10 +208,10 @@ public:
 		aStar.addEdge("E","C");
 		*/
 
-		/*
+		
 		aStar.addNode("rest_area",38.58,51.56);
 		aStar.addNode("vending_machine",34.99,52.40);
-		aStar.addNode("toilette","32.13","55.36");	
+		aStar.addNode("toilette",32.13,55.36);	
 		aStar.addNode("water_font",29,52.44);
 		aStar.addNode("reception" ,6.71,52.56);
 		aStar.addNode("robotics_lab" ,12.29,46.43);
@@ -261,7 +261,7 @@ public:
 		aStar.addEdge("enter_lab" ,"exit_1");
 		aStar.addEdge("enter_corridor_1" ,"hall");
 		aStar.addEdge("hall" ,"reception");
-		*/
+		
 		
 		
 
@@ -269,7 +269,7 @@ public:
 	virtual ~AStarPathProvider() {}
 	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
 	{
-		/*
+		
 		std::string start_id,goal_id;
 		aStar.getClosestNode(position.getX(),position.getY(),start_id);
 		aStar.getClosestNode(goal.getX(),goal.getY(),goal_id);
@@ -285,9 +285,9 @@ public:
 		aStar.getPos(*it,x,y);
 		nextPoint.set(x,y);
 		return nextPoint;
-		*/
+		
 
-
+		/*
 		static const utils::Vector2d B(17,7);
 		static const utils::Vector2d C(27,7);
 		static const utils::Vector2d D(17,17);
@@ -326,6 +326,7 @@ public:
 			nextPoint = goal;
 		}
 		return nextPoint;
+		*/
 
 	}
 
@@ -334,7 +335,7 @@ private:
 	
 
 
-	//utils::AStar aStar;
+	utils::AStar aStar;
 
 };
 
