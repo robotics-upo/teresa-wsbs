@@ -140,7 +140,7 @@ bool CmdVel::compute(double dt)
 	//}
 	if ( FORCES.getData().targetFound &&
 		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= FORCES.getParams().targetLookahead &&
-		velocityRef.norm()<0.1) {
+		velocityRef.norm()<0.2) {
 		velocityRef.set(0,0);
 		positionRef = FORCES.getData().robot.position;
 		yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
