@@ -149,7 +149,7 @@ public:
 	struct Parameters
 	{
 		Parameters()
-		: forceFactorDesired(2.0), 
+		: forceFactorDesired(3.0), //2.0 
 		  forceFactorObstacle(10),  
 		  forceSigmaObstacle(0.2),
 		  forceFactorSocial(2.1),  
@@ -158,17 +158,17 @@ public:
 		  forceFactorGroupRepulsion(1.0),
 		  robotRadius(0.35),
 		  personRadius(0.35),
-		  robotMaxLinearVelocity(0.4), // 0.6 0.5 0.3
-		  robotMaxAngularVelocity(0.8),
-		  robotMaxLinearAcceleration(1.0), 
-		  robotMaxAngularAcceleration(1.0), 
+		  robotMaxLinearVelocity(0.5), // 0.6 0.5 0.3
+		  robotMaxAngularVelocity(0.8), // 1.5
+		  robotMaxLinearAcceleration(1.0), // 1.0 
+		  robotMaxAngularAcceleration(1.0), // 1.0 
 		  lambda(2.0),
 		  gamma(0.35),
 		  n(2.0),
 		  nPrime(3.0),
-		  relaxationTime(0.5),
+		  relaxationTime(0.5), // 0.5
 		  heuristicPlanner(true),
-		  naiveGoalTime(1.0),
+		  naiveGoalTime(4.0), // 1.0
 		  goalRadius(1.0), //0.25
 		  obstacleDistanceThreshold(2.0),
 		  personVelocityZeroThreshold(0.05),
@@ -207,7 +207,6 @@ public:
 	};
 
 
-	Forces(Forces const&) = delete;
         void operator=(Forces const&) = delete;
 	~Forces() {}
 	static Forces& getInstance()
