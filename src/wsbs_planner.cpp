@@ -87,7 +87,7 @@ private:
 	double cell_size,running_time;
 
 	ros::Publisher goal_markers_pub;
-
+	ros::Publisher target_pose_pub;
 	
 };
 
@@ -147,7 +147,9 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Planner::odomReceived,this);
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Planner::peopleReceived,this);
-	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);	
+	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);
+	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);
+	
 	
 	ros::Rate r(freq);
 	
@@ -232,7 +234,10 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& belief) const
 {
 	utils::Vector2d likelyGoal;
-	
+	utils::Vector2d targetPos;
+	utils::Vector2d targetVel;	
+
+
 	std::map<utils::Vector2d, double> goals;
 	for (auto it = belief.getParticles().cbegin(); it!= belief.getParticles().cend(); ++it) {
 		if (goals.count(it->goal)==0) {
@@ -240,13 +245,28 @@ utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& b
 		} else {
 			goals[it->goal] += 1.0/(double)(belief.size());
 		}
+		targetPos += it->target_pos;
+		targetVel += it->target_vel;
 	}
 
 	if (goals.empty()) {
 		for (unsigned i = 0 ; i< Planner::goals.size(); i++) {
 			goals[Planner::goals[i]] = 1.0 / (double) Planner::goals.size(); 
 		}
-	
+	} else {
+		targetPos /= (double) belief.getParticles().size();
+		targetVel /= (double) belief.getParticles().size();
+		upo_msgs::PersonPoseUPO target;
+		target.header.frame_id = "map";
+          	target.header.stamp = ros::Time::now();
+		target.id = 0;
+		target.vel = targetVel.norm();
+		target.position.x = targetPos.getX();
+		target.position.y = targetPos.getY();
+		target.position.z = 0;
+		target.orientation = tf::createQuaternionMsgFromRollPitchYaw(0.0, 0.0, targetVel.angle().toRadian());	
+		target_pose_pub.publish(target);
+		
 	}
 	
 	double max=0;

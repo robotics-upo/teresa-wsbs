@@ -82,6 +82,7 @@ private:
 	void laserReceived(const sensor_msgs::LaserScan::ConstPtr& laser);
 	void xtionReceived(const sensor_msgs::LaserScan::ConstPtr& xtion);
 	void peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
+	
 	void publishForceMarker(unsigned index, const std_msgs::ColorRGBA& color, 
 					const utils::Vector2d& force, visualization_msgs::MarkerArray& markers);
 
@@ -146,6 +147,7 @@ private:
 	utils::Vector2d targetPos;
 	utils::Vector2d targetVel;
 	bool targetReceived;
+	bool use_estimated_target;
 };
 
 
@@ -190,6 +192,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
+	pn.param<bool>("use_estimated_target",use_estimated_target,true);
 
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_planner",FORCES.getParams().heuristicPlanner, true);
@@ -209,6 +212,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	ros::ServiceServer select_mode_srv  = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
 
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Controller::peopleReceived,this);
+
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Controller::odomReceived,this);
 	ros::Subscriber laser_sub = n.subscribe<sensor_msgs::LaserScan>(laser_id, 1, &Controller::laserReceived,this);
 	ros::Subscriber xtion_sub;
@@ -488,10 +492,11 @@ bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs:
 			controller_mode_goal.set(req.goal_x,req.goal_y);
 			ROS_INFO("Controller mode goal: (%lf, %lf)",controller_mode_goal.getX(), controller_mode_goal.getY());
 		}
-		targetPos.set(req.target_pos_x,req.target_pos_y);
-		targetVel.set(req.target_vel_x,req.target_vel_y);
-		targetReceived = true;
-		
+		if (use_estimated_target) {
+			targetPos.set(req.target_pos_x,req.target_pos_y);
+			targetVel.set(req.target_vel_x,req.target_vel_y);
+			targetReceived = true;
+		}
 		res.error_code = 0;
 	}
 	return true;
@@ -760,8 +765,6 @@ void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& pe
 		}
 	}
 }
-
-
 
 
 }
