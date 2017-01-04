@@ -188,7 +188,7 @@ Simulator::Simulator(GoalProvider& goalProvider, double discount, double robotGr
 inline
 State& Simulator::sampleInitialState(State& state) const
 {
-	state.robot_pos = robot_pos;
+	state.robot_pos = robot_pos; // Tip: noise in pos/vel
 	state.robot_vel = robot_vel;
 	state.target_pos = target_pos;
 	state.target_vel = target_vel;
@@ -257,7 +257,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
 	nextState.target_vel = agents[1].velocity;
 	
-	
+	// TODO: Cambiar goal con una probabilidad
 	if ((nextState.target_pos - state.goal).norm()<0.01) {
 		nextState.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
 	} else {
@@ -277,6 +277,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 inline
 void Simulator::getObservation(const State& state, Observation& observation) const
 {
+	// TODO: Poner dos parametros
 	//observation.robot_pos_grid_x = (int)std::round((state.robot_pos.getX()+utils::RANDOM(0,1))/gridCellSize);
 	//observation.robot_pos_grid_y = (int)std::round((state.robot_pos.getY()+utils::RANDOM(0,1))/gridCellSize);
 	//observation.target_pos_grid_x = (int)std::round((state.target_pos.getX()+utils::RANDOM(0,0.25))/gridCellSize);

@@ -268,7 +268,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			cmdVelProvider.compute(agents[0],0.5);
 			cmd_vel_pub.publish(cmdVelProvider.getCommand());
 			publishGoal();
-			// TODO: Obstacle avoidance Velocity Calc
+			// TODO: Velocity Calc
 			// TODO: Publish markers (robot forces, velocity arcs, local goal, target history) 
 		}
 		publishStatus();

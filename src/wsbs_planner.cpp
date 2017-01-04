@@ -410,7 +410,7 @@ double Planner::getTargetLikelihood(double x, double y)
 	double sum=0;
 	std::unordered_map<utils::Vector2d,unsigned> positions;
 	for (auto it = planner_ptr->getCurrentBelief().getParticles().begin(); it != planner_ptr->getCurrentBelief().getParticles().end(); ++it) {
-		positions[it->target_pos]++;
+		positions[it->target_pos]++; // TODO: no es necesario
 	}
 	
 	for (auto it = positions.begin(); it!= positions.end(); ++it) {
