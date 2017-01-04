@@ -631,7 +631,7 @@ bool Forces::transformPoint(double& x, double& y, const std::string& sourceFrame
 inline
 void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
 {
-	static  model::AStarPathProvider aStar;
+	//static  model::AStarPathProvider aStar;
 
 	// By default, if the goal is not valid, it will perform an antimove
 	data.validGoal = false;
@@ -655,7 +655,7 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 
 	} else {
 		if (controller_mode == SET_GOAL) {
-			double x = data.robot.position.getX();
+			/*double x = data.robot.position.getX();
 			double y = data.robot.position.getY();
 			transformPoint(x,y, "odom", "map") ;
 			utils::Vector2d a,b;
@@ -666,7 +666,7 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 			y = b.getY();
 			transformPoint(x,y, "map", "odom") ;
 			data.goal.set(x,y);			
-			data.validGoal = true;
+			data.validGoal = true;*/
 		} else if (data.targetFound && controller_mode != FOLLOW_PATH) {
 			if (controller_mode == LEFT) {
 				data.goal = data.leftGoal;

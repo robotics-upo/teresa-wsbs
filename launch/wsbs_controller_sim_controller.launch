@@ -4,8 +4,8 @@
 	
 	<node pkg="teresa_wsbs" type="wsbs_controller" name="wsbs_controller" output="screen" respawn="false">
 		<param name="xtion_id" value=""/>
-		<param name="use_leds" value="false"/>
-                <param name="heuristic_planner" value="true"/>
+		<param name="path_file" value="$(find plab)scenarios/upo45.xml"/>
+                <param name="heuristic_controller" value="true"/>
 	</node>
 
 

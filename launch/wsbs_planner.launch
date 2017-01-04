@@ -4,9 +4,7 @@
 	<master auto="start"/>
 
 	<node pkg="teresa_wsbs" type="wsbs_planner" name="wsbs_planner" output="screen" respawn="false">
-		<!--<param name="goals_file" value="$(find teresa_wsbs)maps/test_goals.xml"/>-->
-		<param name="goals_file" value="$(find teresa_wsbs)maps/upo45_goals.xml"/>
-		<!--<param name="paths_file" value="$(find teresa_wsbs)maps/upo45_paths.txt"/>-->
+		<param name="path_file" value="$(find plab)scenarios/upo45.xml"/>
 	</node>
    
 

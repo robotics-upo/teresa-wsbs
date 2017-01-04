@@ -157,6 +157,7 @@ add_dependencies(wsbs_paths ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTE
 ## Specify libraries to link a library or executable target against
 target_link_libraries(wsbs_controller
    ${catkin_LIBRARIES}
+   ${TinyXML_LIBRARIES}
 )
 
 target_link_libraries(wsbs_analysis

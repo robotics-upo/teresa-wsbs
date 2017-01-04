@@ -22,16 +22,22 @@
 
 
 #include <ros/ros.h>
-#include <teresa_wsbs/model.hpp>
+#include <nav_msgs/GetPlan.h>
+#include <tinyxml.h>
+#include <lightsfm/sfm.hpp>
+#include <lightsfm/rosmap.hpp>
 #include <lightpomcp/Pomcp.hpp>
-#include <lightsfm/cmd_vel.hpp>
 #include <teresa_wsbs/start.h>
 #include <teresa_wsbs/stop.h>
 #include <teresa_wsbs/select_mode.h>
+#include <teresa_wsbs/model.hpp>
+#include <vector>
+#include <map>
+#include <std_msgs/UInt8.h>
 #include <nav_msgs/Odometry.h>
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <std_msgs/UInt8.h>
+#include <fstream>
 
 namespace wsbs
 {
@@ -47,7 +53,6 @@ namespace wsbs
 #define	ABORTED		     8
 
 
-
 class Planner
 {
 public:
@@ -60,63 +65,81 @@ private:
 	void statusReceived(const std_msgs::UInt8::ConstPtr& status);
 	void odomReceived(const nav_msgs::Odometry::ConstPtr& odom);
 	void peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
-	static double getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov);
-	double getTargetLikelihood(double x, double y);
-	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief) const;
 	model::Observation& getObservation(model::Observation& observation);
+	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
+	bool transformPose(double& x, double& y, double& theta, const std::string& sourceFrameId, const std::string& targetFrameId) const;
+	static double getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov);
+	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief) const;
+	double getTargetLikelihood(double x, double y);
+	void readGoals(TiXmlNode *pParent);
+	
+	std::vector<utils::Vector2d> goals;
+	
 	ros::ServiceClient controller_start;
 	ros::ServiceClient controller_stop;
 	ros::ServiceClient controller_mode;
+	
+	unsigned targetId;
+	bool running, firstOdom, firstPeople, target_hidden;
+	model::Simulator *simulator;
+	
+	tf::TransformListener tf_listener;
+	double cell_size,running_time;
+
 	ros::Publisher goal_markers_pub;
 	ros::Publisher belief_markers_pub;
 	ros::Publisher target_pose_pub;
-	model::Simulator *simulator;
-	GoalProvider *goalProvider_ptr;
-	bool firstOdom;
-	bool firstPeople;
-	bool running;
-	bool target_hidden;
-	unsigned targetId;
-	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> *planner_ptr;
-	double robot_cell_size,target_cell_size;
+
+	pomcp::PomcpPlanner<model::State,model::Observation,model::Action> *planner_ptr;
+	
 };
+
 
 inline
 Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
-: simulator(NULL),
-  goalProvider_ptr(NULL),
+: targetId(0),
+  running(false),
   firstOdom(false),
   firstPeople(false),
-  running(false),
   target_hidden(true),
-  targetId(0),
+  simulator(NULL),
+  tf_listener(ros::Duration(10)),
   planner_ptr(NULL)
 {
-	double freq, discount;
-	std::string path_file;
-	double lookahead,naive_goal_time,timeout,threshold,exploration_constant;
-	double tracking_range,running_time;
-	std::string odom_id, people_id;
-
+	std::string goals_file, odom_id, people_id,paths_file;
+	double freq, discount, timeout,threshold,exploration_constant,tracking_range,goal_radius;
+	
+	pn.param<std::string>("goals_file",goals_file,"");
+	pn.param<std::string>("paths_file",paths_file,"");
+	pn.param<double>("freq",freq,2.0); //0.5
+	pn.param<double>("discount",discount,0.75);
+	pn.param<double>("cell_size",cell_size,1.0);
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<double>("freq",freq,2.0); 
-	pn.param<double>("discount",discount,0.75);
-	pn.param<double>("robot_cell_size",robot_cell_size,1.0);
-	pn.param<double>("target_cell_size",target_cell_size,1.0);
-	pn.param<std::string>("path_file",path_file,"");
-	pn.param<double>("lookahead",lookahead,2.0);
-	pn.param<double>("naive_goal_time",naive_goal_time,2.0);
-	pn.param<double>("timeout",timeout,1.0); 
+	pn.param<double>("timeout",timeout,1.0); //1.0 0.2
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
-	pn.param<double>("tracking_range",tracking_range,8);
-	pn.param<double>("running_time",running_time,2.0); 
+	pn.param<double>("tracking_range",tracking_range,4);
+	pn.param<double>("goal_radius",goal_radius,1.0);
+	pn.param<double>("running_time",running_time,2.0); // 2.0 0.5
 	
-	AStarPathProvider pathProvider(path_file);
-	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"map",pathProvider,false);
-	goalProvider_ptr = &goalProvider;
+
+	TiXmlDocument xml_doc(goals_file);
+	if (xml_doc.LoadFile()) {
+		readGoals(&xml_doc);
+		if (goals.empty()) {
+			ROS_FATAL("No goals");
+			ROS_BREAK();
+		}
+	} else {
+		ROS_FATAL("Cannot read goals");
+		ROS_BREAK();
+	}
+
+	//model::FilePathProvider pathProvider(paths_file,0.5);
+	model::AStarPathProvider pathProvider;
+
 	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Planner::start,this);
 	ros::ServiceServer stop_srv  = n.advertiseService("/wsbs/stop", &Planner::stop,this);
 	
@@ -131,22 +154,34 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);
 	belief_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/belief", 1);
 	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);	
-	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
-	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout,threshold,exploration_constant);
-	planner_ptr = &planner;
+	
+	
 	ros::Rate r(freq);
-	TF;
+	
+	//teresa_wsbs::start srv;
+	//srv.request.target_id=1;
+	//bool success= controller_start.call(srv);
+	//targetId = 1;
+	//while(!success) {
+	//	success= controller_start.call(srv);
+	//}
+	
+
+
+
+	simulator = new model::Simulator(discount,cell_size,goals,pathProvider,tracking_range,goal_radius,running_time);
+	pomcp::PomcpPlanner<model::State,model::Observation,model::Action> planner(*simulator,timeout,threshold,exploration_constant);
+	planner_ptr = &planner;
+	model::Observation obs;
 	unsigned action;
 	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
 	bool reset=true;
 	unsigned size,depth;
-	model::Observation obs;
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
 			
 			action = planner.getAction();
-			
 			likelyGoal = publishGoals(planner.getCurrentBelief());
 			utils::Vector2d target_pos,target_vel;
 			for (auto it = planner.getCurrentBelief().getParticles().begin(); it != planner.getCurrentBelief().getParticles().end(); ++it) {
@@ -158,30 +193,33 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			planner.computeInfo(size,depth);
 			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
 			if (!reset) {
-				
 				mode_srv.request.controller_mode = action;
-				mode_srv.request.target_id = target_hidden ? -1 : targetId;
 				double x = likelyGoal.getX();
 				double y = likelyGoal.getY();
+				//transformPoint(x,y,"map","odom");
 				mode_srv.request.goal_x = x;
 				mode_srv.request.goal_y = y;
 				x = target_pos.getX();
 				y = target_pos.getY();
-				TF.transformPoint(x,y,"map","odom");
+				transformPoint(x,y,"map","odom");
 				mode_srv.request.target_pos_x = x;
 				mode_srv.request.target_pos_y = y;
-				mode_srv.request.target_yaw =  target_vel.angle().toRadian();
-				mode_srv.request.target_vel = target_vel.norm();
+				mode_srv.request.target_vel_x = target_vel.getX();
+				mode_srv.request.target_vel_y = target_vel.getY();
 				controller_mode.call(mode_srv);	
-			} else {
-				firstOdom=false;
-				firstPeople=false;
 			}					
 			r.sleep();	
 			ros::spinOnce();
 			getObservation(obs);
 			std::cout<<obs<<std::endl;			
+			
 			reset = planner.moveTo(action,obs);
+			/*std::cout<<"--- "<< planner.getCurrentBelief().size()<<" --"<<std::endl;
+			for (auto it = planner.getCurrentBelief().data().begin(); it != planner.getCurrentBelief().data().end(); ++it) {
+				std::cout<<(it->first.target_pos)<<" "<<(it->first.robot_pos)<<(it->second)<<std::endl;
+			}*/
+			
+
 			std::cout<<"RESET: "<<reset<<std::endl;
 			
 		} else {
@@ -191,25 +229,10 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 		
 			
 	}
-
 }
 
-inline
-Planner::~Planner()
-{
-	delete simulator;
 
-}
 
-model::Observation& Planner::getObservation(model::Observation& observation)
-{
-	observation.robot_pos_grid_x = (int)std::round(simulator->robot_pos.getX()/robot_cell_size);
-	observation.robot_pos_grid_y = (int)std::round(simulator->robot_pos.getY()/robot_cell_size);
-	observation.target_pos_grid_x = (int)std::round(simulator->target_pos.getX()/target_cell_size);
-	observation.target_pos_grid_y = (int)std::round(simulator->target_pos.getY()/target_cell_size);
-	observation.target_hidden = target_hidden;
-	return observation;
-}
 
 
 
@@ -277,8 +300,8 @@ utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& b
 	}
 	belief_markers_pub.publish(belief_markers);	
 	if (goals.empty()) {
-		for (unsigned i = 0 ; i< goalProvider_ptr->getGoals().size(); i++) {
-			goals[goalProvider_ptr->getGoals()[i]] = 1.0 / (double) goalProvider_ptr->getGoals().size(); 
+		for (unsigned i = 0 ; i< Planner::goals.size(); i++) {
+			goals[Planner::goals[i]] = 1.0 / (double) Planner::goals.size(); 
 		}
 	} else {
 		
@@ -333,6 +356,182 @@ utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& b
 }
 
 
+bool Planner::transformPose(double& x, double& y, double& theta, const std::string& sourceFrameId, const std::string& targetFrameId) const
+{
+	tf::Stamped<tf::Pose> pose,tfPose;
+	pose.setData(tf::Pose(tf::createQuaternionFromRPY(0,0,theta), tf::Vector3(x,y,0)));
+	pose.frame_id_ = sourceFrameId;
+	pose.stamp_ = ros::Time(0);
+	try
+	{
+		tf_listener.transformPose(targetFrameId, pose, tfPose);
+	} catch(std::exception &e) {
+		ROS_ERROR("%s",e.what());
+		return false;
+	}
+	x = tfPose.getOrigin().getX();
+	y = tfPose.getOrigin().getY();
+	tf::Matrix3x3 m(tfPose.getRotation());
+	double roll,pitch;
+	m.getRPY(roll, pitch, theta);
+	return true;
+}
+
+
+
+bool Planner::transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const
+{
+	tf::Stamped<tf::Pose> pose,tfPose;
+	pose.setData(tf::Pose(tf::createQuaternionFromRPY(0,0,0), tf::Vector3(x,y,0)));
+	pose.frame_id_ = sourceFrameId;
+	pose.stamp_ = ros::Time(0);
+	try
+	{
+		tf_listener.transformPose(targetFrameId, pose, tfPose);
+	} catch(std::exception &e) {
+		ROS_ERROR("%s",e.what());
+		return false;
+	}
+	x = tfPose.getOrigin().getX();
+	y = tfPose.getOrigin().getY();
+	return true;
+}
+
+
+Planner::~Planner()
+{
+	delete simulator;
+}
+
+
+model::Observation& Planner::getObservation(model::Observation& observation)
+{
+	observation.robot_pos_grid_x = (int)std::round(simulator->robot_pos.getX()/cell_size);
+	observation.robot_pos_grid_y = (int)std::round(simulator->robot_pos.getY()/cell_size);
+	observation.target_pos_grid_x = (int)std::round(simulator->target_pos.getX()/cell_size);
+	observation.target_pos_grid_y = (int)std::round(simulator->target_pos.getY()/cell_size);
+	observation.target_hidden = target_hidden;
+	return observation;
+}
+
+
+void Planner::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
+{
+	double x,y;
+	x = odom->pose.pose.position.x;
+	y = odom->pose.pose.position.y;
+	double yaw =tf::getYaw(odom->pose.pose.orientation);	
+	
+	if (transformPose(x, y, yaw, odom->header.frame_id, "map")) {
+		simulator->robot_pos.set(x,y);
+		simulator->robot_vel.set(odom->twist.twist.linear.x * std::cos(yaw), odom->twist.twist.linear.x * std::sin(yaw));
+		//simulator->robot_pos+=simulator->robot_vel * running_time;
+		firstOdom=true;
+	}
+}
+
+
+
+double Planner::getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov)
+{
+	
+	double rho = cov/(sd0*sd1);
+	double aux = 1 - rho*rho;
+	
+	double z = ((x-m[0])*(x-m[0]))/(sd0*sd0);
+	z -= (2*rho*(x-m[0])*(y-m[1]))/(sd0*sd1);
+	z += ((y-m[1])*(y-m[1]))/(sd1*sd1);
+
+	double c = 1 / (6.283185307 * sd0 * sd1 * sqrt(aux));
+	double e = -z / (2*aux);
+	double p = c*exp(e);
+	/*if (p<1e-40) {
+		p=0.0;	
+	}
+	if (p>1.0) {
+		p=1.0;
+	}*/
+	return p;
+}
+
+
+double Planner::getTargetLikelihood(double x, double y) 
+{
+	if (planner_ptr==NULL) {
+		return 0;
+	}
+	double sum=0;
+	std::unordered_map<utils::Vector2d,unsigned> positions;
+	for (auto it = planner_ptr->getCurrentBelief().getParticles().begin(); it != planner_ptr->getCurrentBelief().getParticles().end(); ++it) {
+		positions[it->target_pos]++;
+	}
+	
+	for (auto it = positions.begin(); it!= positions.end(); ++it) {
+		double p = getPDF(x,y,it->first,0.25,0.25,0);
+		double w = (double)it->second/(double)planner_ptr->getCurrentBelief().getParticles().size();
+		
+		sum+=p*w;
+	}
+	return sum;
+}
+
+void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
+{
+	target_hidden=true;
+	double max=0;
+	unsigned target_id;
+	double target_x;
+	double target_y;
+	double target_yaw;
+	double target_vel;
+	for (unsigned i=0; i< people->personPoses.size(); i++) {
+		double x = people->personPoses[i].position.x;
+		double y = people->personPoses[i].position.y;
+		double yaw = tf::getYaw(people->personPoses[i].orientation);
+		if (transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+			double p = getTargetLikelihood(x,y);
+			if (p>max) {
+				target_id = people->personPoses[i].id;
+				target_x = x;
+				target_y = y;
+				target_yaw = yaw;
+				target_vel = people->personPoses[i].vel;
+				max = p;
+			}
+		}
+	}
+	if (max>0) {
+		targetId = target_id;
+		simulator->target_pos.set(target_x,target_y);
+		simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
+		target_hidden = false;
+	}	
+	firstPeople=true;
+}
+/* */
+/*
+void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
+{
+	target_hidden=true;
+	
+	for (unsigned i=0; i< people->personPoses.size(); i++) {
+		double x = people->personPoses[i].position.x;
+		double y = people->personPoses[i].position.y;
+		double yaw = tf::getYaw(people->personPoses[i].orientation);
+		if (transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+			double p = getTargetLikelihood(x,y);
+			std::cout<<people->personPoses[i].id<<" "<<x<<" "<<y<<" "<<p<<std::endl;
+			if (people->personPoses[i].id == targetId) {
+				simulator->target_pos.set(x,y);
+				simulator->target_vel.set(people->personPoses[i].vel * std::cos(yaw), people->personPoses[i].vel * std::sin(yaw));
+				//simulator->target_pos+=simulator->target_vel * running_time;
+				target_hidden=false;
+			}
+		}
+	}	
+	firstPeople=true;
+}
+*/
 
 void Planner::statusReceived(const std_msgs::UInt8::ConstPtr& status)
 {
@@ -367,104 +566,37 @@ bool Planner::stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response 
 }
 
 
-
-void Planner::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
+inline
+void Planner::readGoals(TiXmlNode *pParent)
 {
-	double x,y;
-	x = odom->pose.pose.position.x;
-	y = odom->pose.pose.position.y;
-	double yaw =tf::getYaw(odom->pose.pose.orientation);	
-	
-	if (TF.transformPose(x, y, yaw, odom->header.frame_id, "map")) {
-		simulator->robot_pos.set(x,y);
-		simulator->robot_vel.set(odom->twist.twist.linear.x * std::cos(yaw), odom->twist.twist.linear.x * std::sin(yaw));
-		firstOdom=true;
+	if ( !pParent ) return;
+
+	if ( pParent->Type() == TiXmlNode::TINYXML_ELEMENT) {
+		TiXmlElement* pElement = pParent->ToElement();
+		TiXmlAttribute* pAttrib=pElement->FirstAttribute();
+		if (strcmp(pParent->Value(),"goal")==0) {
+			utils::Vector2d goal;
+			double x,y,radius;
+			std::string id;
+			id.assign(pAttrib->Value());
+			pAttrib=pAttrib->Next();
+			pAttrib->QueryDoubleValue(&x);
+			pAttrib=pAttrib->Next();
+			pAttrib->QueryDoubleValue(&y);
+			pAttrib=pAttrib->Next();
+			pAttrib->QueryDoubleValue(&radius);
+			goal.set(x,y);
+			goals.push_back(goal);
+		} 
 	}
+
+	for (TiXmlNode* pChild = pParent->FirstChild(); pChild != 0; pChild = pChild->NextSibling()) {
+		readGoals( pChild );
+	}
+
 }
 
 
-
-double Planner::getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov)
-{
-	
-	double rho = cov/(sd0*sd1);
-	double aux = 1 - rho*rho;
-	
-	double z = ((x-m[0])*(x-m[0]))/(sd0*sd0);
-	z -= (2*rho*(x-m[0])*(y-m[1]))/(sd0*sd1);
-	z += ((y-m[1])*(y-m[1]))/(sd1*sd1);
-
-	double c = 1 / (6.283185307 * sd0 * sd1 * sqrt(aux));
-	double e = -z / (2*aux);
-	double p = c*exp(e);
-	
-	return p;
-}
-
-
-double Planner::getTargetLikelihood(double x, double y) 
-{
-	if (planner_ptr==NULL) {
-		return 0;
-	}
-	double sum=0;
-	std::unordered_map<utils::Vector2d,unsigned> positions;
-	for (auto it = planner_ptr->getCurrentBelief().getParticles().begin(); it != planner_ptr->getCurrentBelief().getParticles().end(); ++it) {
-		positions[it->target_pos]++;
-	}
-	
-	for (auto it = positions.begin(); it!= positions.end(); ++it) {
-		double p = getPDF(x,y,it->first,0.25,0.25,0);
-		double w = (double)it->second/(double)planner_ptr->getCurrentBelief().getParticles().size();
-		sum+=p*w;
-	}
-	return sum;
-}
-
-
-void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
-{
-	target_hidden=true;
-	double max=0;
-	unsigned target_id;
-	double target_x;
-	double target_y;
-	double target_yaw;
-	double target_vel;
-	for (unsigned i=0; i< people->personPoses.size(); i++) {
-		double x = people->personPoses[i].position.x;
-		double y = people->personPoses[i].position.y;
-		double yaw = tf::getYaw(people->personPoses[i].orientation);
-		if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
-			if (firstPeople) {
-				double p = getTargetLikelihood(x,y);
-				if (p>max) {
-					target_id = people->personPoses[i].id;
-					target_x = x;
-					target_y = y;
-					target_yaw = yaw;
-					target_vel = people->personPoses[i].vel;
-					max = p;
-				}
-			} else if (people->personPoses[i].id == targetId) {
-				target_id = people->personPoses[i].id;
-				target_x = x;
-				target_y = y;
-				target_yaw = yaw;
-				target_vel = people->personPoses[i].vel;
-				max = 100;
-			}
-		}
-	}
-	
-	if (max>0) {
-		targetId = target_id;
-		simulator->target_pos.set(target_x,target_y);
-		simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
-		target_hidden = false;
-	}	
-	firstPeople=true;
-}
 
 }
 

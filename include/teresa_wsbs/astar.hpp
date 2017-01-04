@@ -27,8 +27,6 @@ public:
 		x = nodes.at(id).x;
 		y = nodes.at(id).y;
 	}
-
-
 	std::list<std::string>& getPath(const std::string& start_id, const std::string& goal_id, std::list<std::string>& path);
 
 private:
@@ -95,14 +93,11 @@ void AStar::addEdge(const std::string& id0, const std::string& id1)
 
 }
 
-
 inline
 void AStar::addEdge(const std::string& id0, const std::string& id1, double cost)
 {
-	
 	nodes[id0].neighbors[id1]=cost;	
 }
-
 
 
 inline
