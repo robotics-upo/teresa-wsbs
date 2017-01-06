@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<!-- goals -->
+	<goal id="rest_area" x="38.58" y="51.56" r="0.5"/>	
+	<goal id="water_font" x="29" y="52.44" r="0.5"/>
+	<goal id="vending_machine" x="34.99" y="52.40" r="0.5"/>
+	
+
+	<!-- other waypoints -->
+	<waypoint id="toilette" x="32.13" y="55.36" r="0.5"/>	
+	<waypoint id="reception" x="6.71" y="52.56" r="0.5"/>
+	<waypoint id="exit_2" x="24.39" y="26.63" r="0.5"/>
+	
+	<waypoint id="classroom_1" x="26.72" y="47.75" r="0.5"/>
+	<waypoint id="classroom_2_1" x="26.83" y="41.33" r="0.5"/>
+	<waypoint id="classroom_2_2" x="26.78" y="39.43" r="0.5"/>
+	<waypoint id="classroom_3_1" x="26.7" y="33.05" r="0.5"/>
+	<waypoint id="classroom_3_2" x="26.56" y="31.40" r="0.5"/>
+	<waypoint id="exit_1" x="7.84" y="31.96" r="0.5"/>
+	<waypoint id="robotics_lab" x="12.29" y="46.43" r="0.5"/>
+	
+	<waypoint id="coffe_area" x="32.34" y="51.15" r="0.5"/>
+	<waypoint id="enter_coffe_area" x="28.73" y="50.55" r="0.5"/>
+	<waypoint id="enter_corridor_1" x="7.73" y="50.58" r="0.5"/>
+	<waypoint id="enter_corridor_2" x="24.75" y="50.31" r="0.5"/>
+	<waypoint id="hall" x="5.53" y="51.86" r="0.5"/>
+	<waypoint id="enter_lab" x="7.88" y="47.54" r="0.5"/>
+	<waypoint id="whiteboard" x="11.12" y="47.60" r="0.5"/>
+	<waypoint id="corridor_2_a" x="24.56" y="47.51" r="0.5"/>
+	<waypoint id="corridor_2_b" x="24.56" y="47.51" r="0.5"/>
+	<waypoint id="corridor_2_c" x="24.31" y="32.10" r="0.5"/>
+
+	<edge from="rest_area" to="vending_machine"/>
+	<edge from="rest_area" to="water_font"/>
+	<edge from="rest_area" to="coffe_area"/>
+	<edge from="rest_area" to="enter_coffe_area"/>
+	<edge from="vending_machine" to="water_font"/>
+	<edge from="vending_machine" to="coffe_area"/>
+	<edge from="vending_machine" to="enter_coffe_area"/>
+	<edge from="toilette" to="coffe_area"/>
+	<edge from="water_font" to="coffe_area"/>
+	<edge from="water_font" to="enter_coffe_area"/>
+	<edge from="coffe_area" to="enter_coffe_area"/>
+	<edge from="enter_coffe_area" to="enter_corridor_2"/>
+	<edge from="enter_corridor_2" to="corridor_2_a"/>
+	<edge from="corridor_2_a" to ="classroom_1"/>
+	<edge from="corridor_2_a" to ="corridor_2_b"/>
+	<edge from="corridor_2_b" to ="classroom_2_1"/>
+	<edge from="corridor_2_b" to ="classroom_2_2"/>
+	<edge from="corridor_2_b" to ="corridor_2_c"/>
+	<edge from="corridor_2_c" to ="classroom_3_1"/>
+	<edge from="corridor_2_c" to ="classroom_3_2"/>
+	<edge from="corridor_2_c" to ="exit_2"/>
+	<edge from="enter_corridor_2" to="enter_corridor_1"/>
+	<edge from="enter_corridor_1" to="enter_lab"/>
+	<edge from="enter_lab" to="whiteboard"/>
+	<edge from="whiteboard" to="robotics_lab"/>
+	<edge from="enter_lab" to="exit_1"/>
+	<edge from="enter_corridor_1" to ="hall"/>
+	<edge from="hall" to="reception"/>
+	
+	<agent x="37.68" y="52.28" n="1" dx="1" dy="1" type="2">
+		<addwaypoint id="vending_machine"/>
+		<addwaypoint id="coffe_area"/>
+		<addwaypoint id="water_font"/>
+		<addwaypoint id="enter_coffe_area"/>
+		<addwaypoint id="enter_corridor_2"/>
+		<addwaypoint id="corridor_2_a"/>
+		<addwaypoint id="corridor_2_b"/>
+		<addwaypoint id="corridor_2_c"/>
+		<addwaypoint id="exit_2"/>
+		<addwaypoint id="corridor_2_c"/>
+		<addwaypoint id="corridor_2_b"/>
+		<addwaypoint id="corridor_2_a"/>
+		<addwaypoint id="enter_corridor_2"/>
+		<addwaypoint id="enter_corridor_1"/>
+		<addwaypoint id="enter_lab"/>
+		<addwaypoint id="whiteboard"/>
+		<addwaypoint id="robotics_lab"/>
+		<addwaypoint id="whiteboard"/>	
+		<addwaypoint id="enter_lab"/>
+		<addwaypoint id="enter_corridor_1"/>
+		<addwaypoint id="hall"/>
+		<addwaypoint id="reception"/>
+		<addwaypoint id="hall"/>
+		<addwaypoint id="enter_corridor_1"/>
+		<addwaypoint id="enter_lab"/>
+		<addwaypoint id="exit_1"/>
+		<addwaypoint id="enter_lab"/>
+		<addwaypoint id="enter_corridor_1"/>
+		<addwaypoint id="enter_corridor_2"/>
+		<addwaypoint id="enter_coffe_area"/>
+		<addwaypoint id="water_font"/>	
+		<addwaypoint id="coffe_area"/>
+		<addwaypoint id="rest_area"/>								
+	</agent>
+
+
+	<agent x="24.39" y="26.63" n="2" dx="1" dy="1" type="1">
+		<addwaypoint id="enter_corridor_2"/>
+		<addwaypoint id="exit_2"/>
+	</agent>
+	
+	<agent x="32" y="51" n="1" dx="1" dy="1" type="1">
+	</agent>
+	
+	<agent x="33" y="51" n="1" dx="1" dy="1" type="1">
+	</agent>
+	
+</scenario>

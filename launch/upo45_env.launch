@@ -15,12 +15,10 @@
 
   <!--transform people receive to UPO messages format-->
   <!--<node pkg="spencer_to_upo_people" type="spencer_to_upo_people" name="spencer_to_upo_people" output="screen" >
-	<param name="publish_markers" type="bool" value="false" />
+	<param name="publish_markers" type="bool" value="true" />
         <param name="use_kf" type="bool" value="false" />
         <param name="spencer_people_id" type="str" value="/spencer/perception/tracked_persons" />
   </node>-->
-
-
 
   <!-- Run the map server -->
   <node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/upo_lab/maps/upo45.yaml" />
@@ -72,7 +70,7 @@
  
 
  <!-- People localisation -->
- <!--  <include file="$(find uva_launchers)/launch/combined_tracking.launch"/>-->
+ <!--<include file="$(find uva_launchers)/launch/combined_tracking.launch"/>-->
 <include file="$(find people_laser_tracker)/launch/people_tracker.launch"/>
 
 </launch>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<!-- goals -->
+	<goal id="B" x="12.83" y="47.73" r="0.5"/>	
+	<goal id="C" x="12.83" y="45.10" r="0.5"/>
+	<goal id="D" x="9.5" y="45.10" r="0.5"/>
+	<goal id="G" x="7.74" y="39.57" r="0.5"/>
+
+	<!-- other waypoints -->
+	<waypoint id="A" x="9.5" y="47.73" r="0.5"/>	
+	<waypoint id="E" x="11.04" y="46.25" r="0.5"/>
+	<waypoint id="F" x="7.69" y="47.73" r="0.5"/>
+
+	<edge from="A" to="F"/>
+	<edge from="A" to="B"/>
+	<edge from="A" to="E"/>
+	<edge from="A" to="D"/>
+	<edge from="B" to="E"/>
+	<edge from="B" to="C"/>
+	<edge from="C" to="E"/>
+	<edge from="C" to="D"/>
+	<edge from="D" to="E"/>
+	<edge from="F" to="G"/>
+</scenario>

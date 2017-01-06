@@ -30,7 +30,7 @@
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
-
+#include <teresa_wsbs/common.hpp>
 #include <std_msgs/ColorRGBA.h>
 #include <tf/transform_listener.h>
 #include <vector>
@@ -65,17 +65,6 @@ private:
 	std::string id;
 	ros::Time time;
 	double timeout;
-};
-
-
-// Controller Mode
-enum ControllerMode {
-	LEFT		= 0,
-	RIGHT		= 1,
-	BEHIND		= 2,
-	FOLLOW_PATH	= 3,
-	WAIT		= 4,
-	SET_GOAL	= 5
 };
 
 
@@ -172,7 +161,7 @@ public:
 		  goalRadius(1.0), //0.25
 		  obstacleDistanceThreshold(2.0),
 		  personVelocityZeroThreshold(0.05),
-		  targetLookahead(2.0),
+		  targetLookahead(2.0), //2.0
 		  beta_v(0.4),
 		  beta_d(0.3),
 		  beta_y(0.3)
@@ -635,7 +624,7 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 
 	// By default, if the goal is not valid, it will perform an antimove
 	data.validGoal = false;
-	if (params.heuristicPlanner) {
+	if (params.heuristicPlanner || controller_mode == HEURISTIC) {
 		if (data.targetFound && 
 			(data.robot.position - data.target.position).norm() <= FORCES.getParams().targetLookahead) {
 			if ((data.rightGoal - data.robot.position).squaredNorm() <
@@ -646,13 +635,10 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 				data.goal = data.leftGoal;
 				data.validGoal = true;
 			}
-
 		} else if (data.pathFound) {
-			
 			data.goal = data.followGoal;
 			data.validGoal = true;
 		}
-
 	} else {
 		if (controller_mode == SET_GOAL) {
 			/*double x = data.robot.position.getX();

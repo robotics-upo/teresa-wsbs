@@ -4,8 +4,8 @@
 	
 	<node pkg="teresa_wsbs" type="wsbs_controller" name="wsbs_controller" output="screen" respawn="false">
 		<param name="xtion_id" value="/depthcamscan_node/scanXtion"/>
-		<param name="use_leds" value="false"/>
-                <param name="heuristic_planner" value="false"/>
+		<param name="path_file" value="$(find teresa_wsbs)scenarios/upo45_1.xml"/>
+                <param name="heuristic_controller" value="false"/>
 	</node>
 
 

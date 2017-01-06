@@ -322,7 +322,8 @@ inline
 bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 {
 	const ControllerMode& action = getAction(actionIndex);
-	return action==HEURISTIC || action == SET_GOAL;
+	return action==HEURISTIC;	
+	//return action==HEURISTIC || action == SET_GOAL;
 	//return action!=FOLLOW_PATH && action!=WAIT;	
 	/*
 	if (action == FOLLOW_PATH || action==WAIT ) {

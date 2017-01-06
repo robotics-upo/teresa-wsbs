@@ -144,9 +144,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	model::Observation obs;
 	while(n.ok()) {
 		if (running && firstOdom && firstPeople) {
-			
 			action = planner.getAction();
-			
 			likelyGoal = publishGoals(planner.getCurrentBelief());
 			utils::Vector2d target_pos,target_vel;
 			for (auto it = planner.getCurrentBelief().getParticles().begin(); it != planner.getCurrentBelief().getParticles().end(); ++it) {
@@ -363,6 +361,10 @@ bool Planner::stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response 
 	srv.request = req;
 	bool success= controller_stop.call(srv);
 	res = srv.response;
+	firstPeople=false;
+	if (planner_ptr!=NULL) {
+		planner_ptr->reset();
+	}
 	return success;
 }
 
@@ -432,12 +434,16 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 	double target_yaw;
 	double target_vel;
 	for (unsigned i=0; i< people->personPoses.size(); i++) {
+			
 		double x = people->personPoses[i].position.x;
 		double y = people->personPoses[i].position.y;
 		double yaw = tf::getYaw(people->personPoses[i].orientation);
 		if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+			std::cout<<targetId<<" "<<people->personPoses[i].id<<" "<<x<<" "<<y<<std::endl;
 			if (firstPeople) {
+				std::cout<<"Particles: "<<planner_ptr->getCurrentBelief().getParticles().size()<<std::endl;
 				double p = getTargetLikelihood(x,y);
+				std::cout<<people->personPoses[i].id<<" "<<p<<std::endl;
 				if (p>max) {
 					target_id = people->personPoses[i].id;
 					target_x = x;
@@ -453,17 +459,18 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 				target_yaw = yaw;
 				target_vel = people->personPoses[i].vel;
 				max = 100;
+				firstPeople=true;
 			}
 		}
 	}
-	
+	std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
 	if (max>0) {
 		targetId = target_id;
 		simulator->target_pos.set(target_x,target_y);
 		simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
 		target_hidden = false;
 	}	
-	firstPeople=true;
+	
 }
 
 }
