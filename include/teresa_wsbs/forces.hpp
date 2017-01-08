@@ -688,8 +688,6 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 	data.pathFound = false;
 	
 	for (unsigned i=0; i< people->personPoses.size(); i++) {
-		
-
 		utils::Vector2d position(people->personPoses[i].position.x,people->personPoses[i].position.y);
 		utils::Angle yaw = utils::Angle::fromRadian(tf::getYaw(people->personPoses[i].orientation));
 		utils::Vector2d velocity(people->personPoses[i].vel * yaw.cos(), people->personPoses[i].vel * yaw.sin());

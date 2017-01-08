@@ -34,9 +34,13 @@
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
 #include <teresa_wsbs/Info.h>
+#include <animated_marker_msgs/AnimatedMarker.h>
+#include <animated_marker_msgs/AnimatedMarkerArray.h>	
 
 namespace wsbs
 {
+
+const double PERSON_MESH_SCALE = (2.0 / 8.5 * 1.8)*0.9;
 
 class Controller
 {
@@ -93,6 +97,7 @@ private:
 
 	void setLeds();
 	
+	void publishTarget();
 
 	static std_msgs::ColorRGBA getColor(double r, double g, double b, double a);
 
@@ -126,13 +131,13 @@ private:
 	utils::Vector2d controller_mode_goal;
 	
 	ros::Publisher robot_markers_pub;
-	ros::Publisher target_markers_pub;
+	ros::Publisher target_pub;
 	ros::Publisher path_pub;
 	ros::Publisher goal_pub;
 	ros::Publisher trajectories_pub;
 	ros::Publisher status_pub;
 	ros::Publisher forces_pub;
-
+	
 	ros::ServiceClient leds_client;
 
 	geometry_msgs::Twist zeroTwist;
@@ -146,6 +151,9 @@ private:
 	utils::Vector2d currentGoal;
 	utils::Vector2d targetPos;
 	utils::Vector2d targetVel;
+	utils::Vector2d targetMarkerPos;
+	double targetMarkerVel;
+	double targetMarkerYaw;
 	bool targetReceived;
 	bool use_estimated_target;
 };
@@ -167,6 +175,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double goal_timeout_threshold;
 	
 	double freq;
+	bool publish_target;
 	
 	zeroTwist.linear.x = 0;
 	zeroTwist.linear.y = 0;
@@ -194,6 +203,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
 	pn.param<bool>("use_estimated_target",use_estimated_target,false);
+	pn.param<bool>("publish_target",publish_target,true);
 	
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_controller",FORCES.getParams().heuristicPlanner, true);
@@ -227,7 +237,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
 	robot_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
-	target_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/target_forces", 1);
+	target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/target", 1);
 	forces_pub = pn.advertise<teresa_wsbs::Info>("/wsbs/controller/info", 1);
 	path_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/target_path", 1);
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
@@ -278,6 +288,9 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishPath();
 			publishGoal();
 			publishTrajectories();
+			if (publish_target && FORCES.getData().targetFound) {
+				publishTarget();
+			}
 			if (state == RUNNING) {
 				setLeds();
 			}
@@ -519,6 +532,42 @@ std_msgs::ColorRGBA Controller::getColor(double r, double g, double b, double a)
 	color.b = b;
 	color.a = a;
 	return color;
+}
+
+
+void Controller::publishTarget()
+{
+	animated_marker_msgs::AnimatedMarkerArray marker_array;
+	animated_marker_msgs::AnimatedMarker marker;
+       	marker.mesh_use_embedded_materials = true;
+	marker.lifetime = ros::Duration(1.0);	
+	marker.header.frame_id = odom_id;
+	marker.header.stamp = ros::Time::now();
+	marker.action = FORCES.getData().targetFound?0:2;
+	marker.id = 0;
+	marker.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
+	marker.mesh_resource = "package://teresa_wsbs/images/animated_walking_man.mesh";
+	marker.pose.position.x = targetMarkerPos.getX();
+	marker.pose.position.y = targetMarkerPos.getY();
+	marker.action = 0; 
+	marker.scale.x = PERSON_MESH_SCALE;
+	marker.scale.y = PERSON_MESH_SCALE;
+	marker.scale.z = PERSON_MESH_SCALE;
+	marker.color.a = 1.0;
+	if (targetReceived) {
+		marker.color.r =0.882;
+		marker.color.g = 0.412;
+		marker.color.b =0.255;
+	} else {
+		marker.color.r = 0.255;
+		marker.color.g = 0.412;
+		marker.color.b = 0.882;
+	}
+			
+	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
+  	marker.animation_speed = targetMarkerVel * 0.7;
+	marker_array.markers.push_back(marker);
+	target_pub.publish(marker_array);
 }
 
 
@@ -764,6 +813,9 @@ void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& pe
 		return;
 	}
 	if (FORCES.setPeople(people, targetId, targetReceived, targetPos, targetVel)) {
+		targetMarkerPos = FORCES.getData().target.position; 
+		targetMarkerVel = FORCES.getData().target.velocity.norm();
+		targetMarkerYaw = FORCES.getData().target.yaw.toRadian();
 		people_timeout.setTime(ros::Time::now());
 		if (state == RUNNING && !FORCES.getData().targetFound) {
 			setState(TARGET_LOST);

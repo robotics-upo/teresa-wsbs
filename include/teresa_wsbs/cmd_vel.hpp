@@ -183,15 +183,17 @@ bool CmdVel::compute(double dt)
 			markers.markers[i].color.g = 0.5;
 			markers.markers[i].color.b = 0.5;
 			markers.markers[i].color.a = 1.0;
+			//std::cout << "Limits" << std::endl;
 			continue;
 		}
 		if (FORCES.checkCollision(linVel, angVel,distance,time)) {
 			unsigned size = std::min(30u,(unsigned)std::round(time * 10.0));
 			markers.markers[i].points.assign(full_markers.markers[i].points.begin(),full_markers.markers[i].points.begin()+size);
-			markers.markers[i].color.r = 0.0;
-			markers.markers[i].color.g = 1.0;
+			markers.markers[i].color.r = 1.0;
+			markers.markers[i].color.g = 0.0;
 			markers.markers[i].color.b = 0.0;
 			markers.markers[i].color.a = 1.0;
+			//std::cout << "Collision" << std::endl;
 			continue;
 		}		
 		unsigned size = std::min(30u,(unsigned)std::round(time * 10.0)); 

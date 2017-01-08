@@ -6,6 +6,7 @@
 		<param name="xtion_id" value="/depthcamscan_node/scanXtion"/>
 		<param name="path_file" value="$(find teresa_wsbs)scenarios/upo45_1.xml"/>
                 <param name="heuristic_controller" value="false"/>
+		<param name="use_estimated_target" value="true"/>
 	</node>
 
 
