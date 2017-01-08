@@ -55,6 +55,8 @@ public:
 	~Planner();
 
 private:
+	void publishTree();
+	void publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root);
 	bool start(teresa_wsbs::start::Request &req, teresa_wsbs::start::Response &res);
 	bool stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response &res);
 	void statusReceived(const std_msgs::UInt8::ConstPtr& status);
@@ -155,8 +157,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			target_vel /= planner.getCurrentBelief().size();
 			planner.computeInfo(size,depth);
 			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
+			publishTree();
 			if (!reset) {
-				
 				mode_srv.request.controller_mode = action;
 				mode_srv.request.target_id = target_hidden ? -1 : targetId;
 				double x = likelyGoal.getX();
@@ -195,6 +197,26 @@ Planner::~Planner()
 	delete simulator;
 
 }
+
+
+void Planner::publishTree()
+{
+	const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root = planner_ptr->getRoot();
+	/*while (root != NULL) {
+		
+
+	}*/	
+
+
+}
+
+void Planner::publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root)
+{
+
+
+
+}
+
 
 model::Observation& Planner::getObservation(model::Observation& observation)
 {
