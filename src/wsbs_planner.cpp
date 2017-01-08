@@ -171,9 +171,6 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 				mode_srv.request.target_yaw =  target_vel.angle().toRadian();
 				mode_srv.request.target_vel = target_vel.norm();
 				controller_mode.call(mode_srv);	
-			} else {
-				firstOdom=false;
-				firstPeople=false;
 			}					
 			r.sleep();	
 			ros::spinOnce();
@@ -463,8 +460,9 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 			}
 		}
 	}
-	std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
+	
 	if (max>0) {
+		std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
 		targetId = target_id;
 		simulator->target_pos.set(target_x,target_y);
 		simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));

@@ -174,6 +174,7 @@ bool CmdVel::compute(double dt)
 		double linAcc = (linVel - robot_lin_vel)/dt;
 		double angAcc = (angVel - robot_ang_vel)/dt;
 		markers.markers[i].header.stamp = current_time;
+		markers.markers[i].lifetime = ros::Duration(1.0);
 		if (fabs(linAcc) > FORCES.getParams().robotMaxLinearAcceleration ||
 			fabs(angAcc) > FORCES.getParams().robotMaxAngularAcceleration) {
 			FORCES.checkCollision(linVel, angVel,distance,time);

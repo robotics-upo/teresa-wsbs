@@ -157,7 +157,7 @@ public:
 		  nPrime(3.0),
 		  relaxationTime(0.5), // 0.5
 		  heuristicPlanner(true),
-		  naiveGoalTime(4.0), // 1.0
+		  naiveGoalTime(1.0), // 1.0
 		  goalRadius(1.0), //0.25
 		  obstacleDistanceThreshold(2.0),
 		  personVelocityZeroThreshold(0.05),
@@ -780,9 +780,7 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			break;	
 		}
 	}
-	
-		
- 
+	 
 	return true;
 }
 

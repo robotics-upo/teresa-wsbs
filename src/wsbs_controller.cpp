@@ -154,7 +154,6 @@ private:
 	utils::Vector2d targetMarkerPos;
 	double targetMarkerVel;
 	double targetMarkerYaw;
-	bool targetReceived;
 	bool use_estimated_target;
 };
 
@@ -162,8 +161,7 @@ private:
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 :  state(WAITING_FOR_START),
    controller_mode(HEURISTIC),
-   is_finishing(false),
-   targetReceived(false)
+   is_finishing(false)
 {
 
 	double odom_timeout_threshold;
@@ -196,7 +194,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("odom_timeout",odom_timeout_threshold,0.5);
 	pn.param<double>("laser_timeout",laser_timeout_threshold,0.5);
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
-	pn.param<double>("people_timeout",people_timeout_threshold,2.0);
+	pn.param<double>("people_timeout",people_timeout_threshold,1200.0);
 	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
 	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,200);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
@@ -504,10 +502,7 @@ bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs:
 		controller_mode = (ControllerMode)req.controller_mode;
 		if (use_estimated_target) {
 			ROS_INFO("Likely target ID is %d",req.target_id);
-			if (req.target_id < 0) {
-				targetReceived=true;
-			} else {
-				targetReceived=false;
+			if (req.target_id >= 0) {
 				targetId = req.target_id;
 			}
 			ROS_INFO("Likely target position is (%f, %f)@odom",req.target_pos_x,req.target_pos_y);
@@ -554,15 +549,10 @@ void Controller::publishTarget()
 	marker.scale.y = PERSON_MESH_SCALE;
 	marker.scale.z = PERSON_MESH_SCALE;
 	marker.color.a = 1.0;
-	if (targetReceived) {
-		marker.color.r =0.882;
-		marker.color.g = 0.412;
-		marker.color.b =0.255;
-	} else {
-		marker.color.r = 0.255;
-		marker.color.g = 0.412;
-		marker.color.b = 0.882;
-	}
+	marker.color.r = 0.255;
+	marker.color.g = 0.412;
+	marker.color.b = 0.882;
+	
 			
 	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
   	marker.animation_speed = targetMarkerVel * 0.7;
@@ -601,6 +591,7 @@ void Controller::setState(const State& state)
 		publishPath();
 		publishGoal();
 		publishTrajectories();
+		publishTarget();
 	}
 	ROS_INFO("State is %s",getStateId(state));
 	Controller::state = state;
@@ -627,6 +618,7 @@ void Controller::publishForceMarker(unsigned index, const std_msgs::ColorRGBA& c
 	marker.id = index;
 	marker.action = force.norm()>1e-4 && (state==RUNNING || state==TARGET_LOST)?0:2;
 	marker.color = color;
+	marker.lifetime = ros::Duration(1.0);
 	marker.scale.x = std::max(1e-4,force.norm());
 	marker.scale.y = 0.1;
 	marker.scale.z = 0.1;
@@ -725,6 +717,7 @@ void Controller::publishPath()
 	marker.ns = "target_path";
 	marker.type = 4;
 	marker.id = 0;
+	marker.lifetime = ros::Duration(1.0);
 	marker.action = FORCES.getData().targetHistory.size()>0  && (state==RUNNING || state==TARGET_LOST)?0:2;
 	marker.color = getColor(0,1,0,1);
 	marker.scale.x = 0.05;
@@ -750,6 +743,7 @@ void Controller::publishGoal()
 	marker.ns = "goal";
 	marker.type = 2;
 	marker.id = 0;
+	marker.lifetime = ros::Duration(1.0);
 	marker.action = FORCES.getData().validGoal && (state==RUNNING || state==TARGET_LOST)?0:2;
 	marker.color = getColor(1,0,0,1);
 	marker.scale.x = 0.2;
@@ -812,7 +806,7 @@ void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& pe
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (FORCES.setPeople(people, targetId, targetReceived, targetPos, targetVel)) {
+	if (FORCES.setPeople(people, targetId, false, targetPos, targetVel)) {
 		targetMarkerPos = FORCES.getData().target.position; 
 		targetMarkerVel = FORCES.getData().target.velocity.norm();
 		targetMarkerYaw = FORCES.getData().target.yaw.toRadian();
