@@ -165,6 +165,8 @@ bool CmdVel::compute(double dt)
 	double robot_lin_vel = FORCES.getData().robot.linearVelocity;
 	double robot_ang_vel = FORCES.getData().robot.angularVelocity;
 
+	int i_min=-1;
+
 	double distance=0;
 	double time = 0;
 	ros::Time current_time = ros::Time::now();
@@ -184,6 +186,7 @@ bool CmdVel::compute(double dt)
 			markers.markers[i].color.g = 0.5;
 			markers.markers[i].color.b = 0.5;
 			markers.markers[i].color.a = 1.0;
+			markers.markers[i].scale.x = 0.01;
 			//std::cout << "Limits" << std::endl;
 			continue;
 		}
@@ -194,6 +197,7 @@ bool CmdVel::compute(double dt)
 			markers.markers[i].color.g = 0.0;
 			markers.markers[i].color.b = 0.0;
 			markers.markers[i].color.a = 1.0;
+			markers.markers[i].scale.x = 0.01;
 			//std::cout << "Collision" << std::endl;
 			continue;
 		}		
@@ -203,16 +207,29 @@ bool CmdVel::compute(double dt)
 		markers.markers[i].color.g = 1.0;
 		markers.markers[i].color.b = 0.0;
 		markers.markers[i].color.a = 1.0;
+		markers.markers[i].scale.x = 0.01;
 		//double value = evaluate(linVel, angVel, dt, positionRef, yawRef);
 		double value = evaluate(linVel, angVel, distance, dt, velocityRef, yawRef);
 		
+		markers.markers[i].color.g = value;
 
 		if (value < min) {
 			min = value;
 			command.linear.x = linVel;
 			command.angular.z = angVel;
+			i_min = i;
 		}
 	}
+
+	if(i_min>=0)
+	{
+		markers.markers[i_min].color.r = 0.0;
+		markers.markers[i_min].color.g = 0.0;
+		markers.markers[i_min].color.b = 1.0;
+		markers.markers[i_min].color.a = 1.0;
+		markers.markers[i_min].scale.x = 0.1;
+	}
+
 	
 	return finishing;
 	

@@ -145,11 +145,11 @@ public:
 		  forceFactorGroupGaze(3.0),
 		  forceFactorGroupCoherence(2.0),
 		  forceFactorGroupRepulsion(1.0),
-		  robotRadius(0.35),
+		  robotRadius(0.375), //0.35 Radius of the robot plus 2.5 cms.
 		  personRadius(0.35),
 		  robotMaxLinearVelocity(0.5), // 0.6 0.5 0.3
 		  robotMaxAngularVelocity(0.8), // 1.5
-		  robotMaxLinearAcceleration(1.0), // 1.0 
+		  robotMaxLinearAcceleration(0.5), // 1.0 
 		  robotMaxAngularAcceleration(1.0), // 1.0 
 		  lambda(2.0),
 		  gamma(0.35),
@@ -284,6 +284,137 @@ bool Forces::checkCollision(double linearVelocity, double angularVelocity, doubl
 	}
 	
 	// No angular velocity, special case
+	
+	if (fabs(angularVelocity) < 1e-7) {
+
+		time = 999999;
+		distance = 999999;
+		bool coll=false;
+		for (unsigned i = 0; i< data.obstacles.size(); i++) {
+			if ((linearVelocity>0 && data.obstacles[i].center.getX()<0) || (linearVelocity<0 && data.obstacles[i].center.getX()>0)) {
+				continue;
+			}
+			if (fabs(data.obstacles[i].center.getY())<= params.robotRadius) {
+				double aux_distance = fabs(data.obstacles[i].center.getX());
+				double offset = std::sqrt(PW(params.robotRadius) - PW(data.obstacles[i].center.getY()));
+				aux_distance -= offset;
+				if (aux_distance <0 ) {
+					aux_distance = 0;
+				}
+				double aux_time = aux_distance / fabs(linearVelocity);
+
+				coll = coll || ((aux_time >= 0.0) && fabs(linearVelocity) > std::sqrt(2*aux_distance * params.robotMaxLinearAcceleration));
+
+				if((aux_time >= 0.0) && (aux_time < time))
+				{
+					time=aux_time;
+					distance=fabs(aux_distance);	
+				}
+				
+				
+
+			}		
+		}
+		
+		
+		return coll;
+	}
+
+
+	// Angular and linear velocity, general case
+	time = 999999;
+	distance = 999999;
+
+	//double ang=999999;
+	bool coll=false;
+
+	//Alternative version:
+	utils::Vector2d icc(0,linearVelocity/angularVelocity); //Instantaneous Centre of Rotation. In the local frame (base_link), it is located in the Y axis
+	for (unsigned i = 0; i< data.obstacles.size(); i++) {
+
+		//Obstacle with respect to the instantaneous rotation center
+		utils::Vector2d u = (data.obstacles[i].center - icc); 
+
+		//If the obstacle is outside the annular disc traversed by the robot (radii a and b, centered at icc), no collision
+		double a = icc.norm() - params.robotRadius;
+		double b = icc.norm() + params.robotRadius;
+		
+		//icc within robot radius
+		if (a < 0.0)
+			a = 0.0;
+
+		//No collission
+		if(u.norm() < a || u.norm() > b)
+			continue;
+
+		//Angle, along the circular path, where the collision occurs
+		double ctheta = (icc.squaredNorm()+u.squaredNorm()-PW(params.robotRadius))/(2.0*icc.norm()*u.norm());
+		double theta = std::acos(ctheta);
+
+		//Set the correct cuadrant according to the motion of the robot
+		if ((linearVelocity>0 && angularVelocity > 0)) {
+			u.set(u.getX(),-u.getY());
+		}else if ((linearVelocity<0 && angularVelocity < 0))
+		{
+			u.set(-u.getX(),-u.getY());
+		}else if ((linearVelocity<0 && angularVelocity > 0))
+		{
+			u.set(-u.getX(),u.getY());
+		}
+
+		//Angular distance until the collision (the current angle of the obstacle minus the angle where the collision occurs)
+		//We convert it to have a positive value
+		double angleObs = std::atan2(u[0],u[1]);
+		if(angleObs <0.0)
+			angleObs+=2.0*M_PI;
+
+		double deltaTheta = angleObs - theta;
+
+
+		double aux_distance = deltaTheta * u.norm(); //Distance until collision. Angle (in radians) times radius. It has sign
+		double aux_time = aux_distance/fabs(linearVelocity); 
+		
+
+		//double aux_time = deltaTheta/fabs(angularVelocity);
+		//double aux_distance = fabs(linearVelocity)*aux_time;
+		//Check the condition on angular velocities. Can we avoid the obstacle by stopping the rotation?
+		
+
+		coll = coll || ((aux_time >= 0.0) && ((fabs(linearVelocity) > std::sqrt(2*fabs(aux_distance) * params.robotMaxLinearAcceleration)) || 
+					(fabs(angularVelocity) > std::sqrt(2*fabs(deltaTheta) * params.robotMaxAngularAcceleration))));
+
+		//coll = coll || ((aux_time >= 0.0) && (fabs(linearVelocity) > std::sqrt(2*fabs(aux_distance) * params.robotMaxLinearAcceleration)));	
+		
+		
+		if((aux_time >= 0.0) && (aux_time < time))
+		{
+			time=aux_time;
+			distance=fabs(aux_distance);
+			//ang=deltaTheta;		
+		}	
+
+		
+
+	}
+
+	return coll;
+
+
+}
+
+//Old version
+/*
+inline
+bool Forces::checkCollision(double linearVelocity, double angularVelocity, double& distance, double& time) const
+{
+	// No linear velocity, no collision
+	if (fabs(linearVelocity) < 1e-7) {
+		time = 999999;
+		distance = 999999;
+		return false;
+	}
+	
+	// No angular velocity, special case
 	if (fabs(angularVelocity) < 1e-7) {
 		for (unsigned i = 0; i< data.obstacles.size(); i++) {
 			if ((linearVelocity>0 && data.obstacles[i].center.getX()<0) || (linearVelocity<0 && data.obstacles[i].center.getX()>0)) {
@@ -346,7 +477,7 @@ bool Forces::checkCollision(double linearVelocity, double angularVelocity, doubl
 
 
 }
-
+*/
 
 
 
@@ -780,6 +911,26 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			break;	
 		}
 	}
+
+	//If there is not a point within the lookahead, look for the closest point
+	/*
+	if(!data.pathFound)
+	{
+		double min_dist=99999.9;
+		auto aux_it = data.targetHistory.begin();
+		for (auto it = data.targetHistory.begin(); it!= data.targetHistory.end(); ++it) {
+			if ((data.robot.position - it->position).norm() <= min_dist) {
+				min_dist = (data.robot.position - it->position).norm();			
+				data.pathFound = true;
+				data.followGoal = it->position;
+				aux_it = it;
+				
+			}
+		}
+		if(data.pathFound)
+			data.targetHistory.erase(++aux_it,data.targetHistory.end());
+	}
+	*/
 	 
 	return true;
 }

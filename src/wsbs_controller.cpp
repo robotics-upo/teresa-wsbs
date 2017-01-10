@@ -98,6 +98,7 @@ private:
 	void setLeds();
 	
 	void publishTarget();
+	void publishScan();
 
 	static std_msgs::ColorRGBA getColor(double r, double g, double b, double a);
 
@@ -137,6 +138,7 @@ private:
 	ros::Publisher trajectories_pub;
 	ros::Publisher status_pub;
 	ros::Publisher forces_pub;
+	ros::Publisher scan_pub;
 	
 	ros::ServiceClient leds_client;
 
@@ -224,6 +226,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Controller::odomReceived,this);
 	ros::Subscriber laser_sub = n.subscribe<sensor_msgs::LaserScan>(laser_id, 1, &Controller::laserReceived,this);
+	scan_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/scan",1);
 	ros::Subscriber xtion_sub;
 	if (!xtion_id.empty()) {
 		xtion_sub = n.subscribe<sensor_msgs::LaserScan>(xtion_id, 1, &Controller::xtionReceived,this);
@@ -286,6 +289,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishPath();
 			publishGoal();
 			publishTrajectories();
+			publishScan();
 			if (publish_target && FORCES.getData().targetFound) {
 				publishTarget();
 			}
@@ -294,7 +298,10 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			}
 		}
 		publishStatus();
-		r.sleep();	
+
+		if(!r.sleep())
+			ROS_WARN("WSBS controller desired rate not met");
+	
 		ros::spinOnce();	
 	}
 }
@@ -431,6 +438,7 @@ void Controller::checkTimeouts(const ros::Time& current_time)
 }
 
 
+
 void Controller::publishTrajectories()
 {
 	for (unsigned i=0; i< CMD_VEL.getMarkers().markers.size(); i++) {
@@ -561,6 +569,9 @@ void Controller::publishTarget()
 }
 
 
+
+
+
 const char *Controller::getStateId(const State& state)
 {
 	static std::string ids[] = {"WAITING_FOR_START",
@@ -629,6 +640,34 @@ void Controller::publishForceMarker(unsigned index, const std_msgs::ColorRGBA& c
 	markers.markers.push_back(marker);
 }
 
+
+void Controller::publishScan()
+{
+	visualization_msgs::MarkerArray markers;
+	for (unsigned i = 0; i< FORCES.getData().obstacles.size(); i++) {
+		visualization_msgs::Marker marker;
+		marker.header.frame_id = "base_link";
+          	marker.header.stamp = ros::Time::now();
+		marker.ns = "scan_markers";
+		marker.type = visualization_msgs::Marker::CUBE;
+		marker.id = i;
+		marker.action = visualization_msgs::Marker::ADD;
+		marker.color.a = 1.0;			
+		marker.color.r = 0.0;
+            	marker.color.g = 1.0;
+            	marker.color.b = 0.0;
+		marker.lifetime = ros::Duration(0.1);
+		marker.scale.x = 0.1;
+            	marker.scale.y = 0.1;
+            	marker.scale.z = 0.1;
+		marker.pose.position.x = FORCES.getData().obstacles[i].center.getX();
+		marker.pose.position.y = FORCES.getData().obstacles[i].center.getY();
+		marker.pose.position.z = 0;
+		markers.markers.push_back(marker);
+	}	
+	scan_pub.publish(markers);
+
+}
 
 
 

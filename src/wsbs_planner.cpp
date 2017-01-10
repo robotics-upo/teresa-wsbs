@@ -32,9 +32,13 @@
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <std_msgs/UInt8.h>
+#include <animated_marker_msgs/AnimatedMarker.h>
+#include <animated_marker_msgs/AnimatedMarkerArray.h>	
 
 namespace wsbs
 {
+
+const double PERSON_MESH_SCALE = (2.0 / 8.5 * 1.8)*0.9;
 
 #define	WAITING_FOR_START    0 
 #define	WAITING_FOR_ODOM     1 
@@ -56,7 +60,8 @@ public:
 
 private:
 	void publishTree();
-	void publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root);
+	void publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root,
+				animated_marker_msgs::AnimatedMarkerArray& marker_array, double alpha, int& counter);
 	bool start(teresa_wsbs::start::Request &req, teresa_wsbs::start::Response &res);
 	bool stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response &res);
 	void statusReceived(const std_msgs::UInt8::ConstPtr& status);
@@ -81,6 +86,8 @@ private:
 	unsigned targetId;
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> *planner_ptr;
 	double robot_cell_size,target_cell_size;
+	ros::Publisher predicted_target_pub;
+	
 };
 
 inline
@@ -110,11 +117,11 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<std::string>("path_file",path_file,"");
 	pn.param<double>("lookahead",lookahead,2.0);
 	pn.param<double>("naive_goal_time",naive_goal_time,2.0);
-	pn.param<double>("timeout",timeout,1.0); 
+	pn.param<double>("timeout",timeout,0.3); // 1.0 
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,8);
-	pn.param<double>("running_time",running_time,2.0); 
+	pn.param<double>("running_time",running_time,0.5); // 2.0
 	
 	AStarPathProvider pathProvider(path_file);
 	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"map",pathProvider,false);
@@ -133,6 +140,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);
 	belief_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/belief", 1);
 	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);	
+	predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
 	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout,threshold,exploration_constant);
 	planner_ptr = &planner;
@@ -202,18 +210,57 @@ Planner::~Planner()
 void Planner::publishTree()
 {
 	const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root = planner_ptr->getRoot();
-	/*while (root != NULL) {
-		
-
-	}*/	
-
-
+	animated_marker_msgs::AnimatedMarkerArray marker_array;	
+	int counter = 0;
+	publishTree(root,marker_array,1.0,counter);	
+	predicted_target_pub.publish(marker_array);
 }
 
-void Planner::publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root)
+void Planner::publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root, 
+				animated_marker_msgs::AnimatedMarkerArray& marker_array, double alpha, int& counter)
 {
-
-
+	if (root == NULL || root->belief.size()==0) {
+		return;
+	}
+	utils::Vector2d target_pos,target_vel;
+	utils::Vector2d robot_pos,robot_vel;
+	for (auto it = root->belief.getParticles().begin(); it != root->belief.getParticles().end(); ++it) {
+		target_pos += (it->target_pos);
+		target_vel += (it->target_vel);
+		robot_pos += (it->robot_pos);
+		robot_vel += (it->robot_vel);
+	}
+	target_pos /= root->belief.size();
+	target_vel /= root->belief.size();
+	robot_pos /= root->belief.size();
+	robot_vel /= root->belief.size();
+	animated_marker_msgs::AnimatedMarker marker;
+       	marker.mesh_use_embedded_materials = true;
+	marker.lifetime = ros::Duration(1.0);	
+	marker.header.frame_id = "map";
+	marker.header.stamp = ros::Time::now();
+	marker.action = 0;
+	marker.id = counter++;
+	marker.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
+	marker.mesh_resource = "package://teresa_wsbs/images/animated_walking_man.mesh";
+	marker.pose.position.x = target_pos.getX();
+	marker.pose.position.y = target_pos.getY();
+	marker.action = 0; 
+	marker.scale.x = PERSON_MESH_SCALE;
+	marker.scale.y = PERSON_MESH_SCALE;
+	marker.scale.z = PERSON_MESH_SCALE;
+	marker.color.a = alpha;
+	marker.color.r =0.882;
+	marker.color.g = 0.412;
+	marker.color.b =0.255;
+	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, target_vel.angle().toRadian()+M_PI*0.5);
+  	marker.animation_speed = target_vel.norm() * 0.7;
+	marker_array.markers.push_back(marker);
+	for (auto it = root->childs.begin(); it!= root->childs.end(); ++it) {
+		publishTree(it->second,marker_array,alpha*0.5,counter);
+	}
+	
+	
 
 }
 
@@ -435,7 +482,7 @@ double Planner::getTargetLikelihood(double x, double y)
 	}
 	
 	for (auto it = positions.begin(); it!= positions.end(); ++it) {
-		double p = getPDF(x,y,it->first,0.25,0.25,0);
+		double p = getPDF(x,y,it->first,0.1,0.1,0);
 		double w = (double)it->second/(double)planner_ptr->getCurrentBelief().getParticles().size();
 		sum+=p*w;
 	}

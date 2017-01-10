@@ -251,10 +251,10 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	sfm::SFM.updatePosition(agents,dt);
 	
 	
-	nextState.robot_pos = agents[0].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
+	nextState.robot_pos = agents[0].position+utils::Vector2d(utils::RANDOM(0,0.1),utils::RANDOM(0,0.1));
 	nextState.robot_vel = agents[0].velocity;
 	
-	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
+	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.1),utils::RANDOM(0,0.1));
 	nextState.target_vel = agents[1].velocity;
 	
 	// TODO: Cambiar goal con una probabilidad
