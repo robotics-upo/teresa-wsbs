@@ -110,18 +110,18 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<double>("freq",freq,2.0); 
+	pn.param<double>("freq",freq,0.5); //2.0
 	pn.param<double>("discount",discount,0.75);
 	pn.param<double>("robot_cell_size",robot_cell_size,1.0);
 	pn.param<double>("target_cell_size",target_cell_size,1.0);
 	pn.param<std::string>("path_file",path_file,"");
 	pn.param<double>("lookahead",lookahead,2.0);
 	pn.param<double>("naive_goal_time",naive_goal_time,2.0);
-	pn.param<double>("timeout",timeout,0.3); // 1.0 
+	pn.param<double>("timeout",timeout,0.5); // 1.0 
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,8);
-	pn.param<double>("running_time",running_time,0.5); // 2.0
+	pn.param<double>("running_time",running_time,2.0); // 2.0
 	
 	AStarPathProvider pathProvider(path_file);
 	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"map",pathProvider,false);
@@ -181,6 +181,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 				mode_srv.request.target_yaw =  target_vel.angle().toRadian();
 				mode_srv.request.target_vel = target_vel.norm();
 				controller_mode.call(mode_srv);	
+			} else {
+				firstPeople=false;
 			}					
 			r.sleep();	
 			ros::spinOnce();
