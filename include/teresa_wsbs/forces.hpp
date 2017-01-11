@@ -150,7 +150,7 @@ public:
 		  robotMaxLinearVelocity(0.5), // 0.6 0.5 0.3
 		  robotMaxAngularVelocity(0.8), // 1.5
 		  robotMaxLinearAcceleration(0.5), // 1.0 
-		  robotMaxAngularAcceleration(1.0), // 1.0 
+		  robotMaxAngularAcceleration(2.0), // 1.0 
 		  lambda(2.0),
 		  gamma(0.35),
 		  n(2.0),

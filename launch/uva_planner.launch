@@ -1,0 +1,11 @@
+<!-- -*- mode: XML -*- -->
+
+<launch>
+	<master auto="start"/>
+
+	<node pkg="teresa_wsbs" type="wsbs_planner" name="wsbs_planner" output="screen" respawn="false">
+		<param name="path_file" value="$(find teresa_wsbs)scenarios/uva.xml"/>
+	</node>
+   
+
+</launch>

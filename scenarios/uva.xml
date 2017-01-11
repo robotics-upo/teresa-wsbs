@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<!-- goals -->
+	<goal id="enter_corridor" x="17.08" y="11.95" r="0.5"/>
+	<goal id="exit_corridor" x="34" y="30" r="0.5"/>
+	<goal id="lab" x="22.53" y="20.84" r="0.5"/>
+	<goal id="office" x="26.05" y="25.56" r="0.5"/>
+	<goal id="coffee" x="28.48" y="28.86" r="0.5"/>
+
+	<!-- other waypoints -->
+	<waypoint id="enter_lab" x="24.12" y="19.45" r="0.5"/>
+	<waypoint id="enter_office" x="28.21" y="23.84" r="0.5"/>
+	<waypoint id="enter_coffee" x="30.93" y="26.9" r="0.5"/>
+
+	<!-- edges -->
+	<edge from="enter_corridor" to="enter_lab"/>
+	<edge from="enter_lab" to="lab"/>
+	<edge from="enter_lab" to="enter_office"/>
+	<edge from="enter_office" to="office"/>
+	<edge from="enter_office" to="enter_coffee"/>
+	<edge from="enter_coffee" to="coffee"/>
+	<edge from="enter_coffee" to="exit_corridor"/>
+	
+</scenario>
