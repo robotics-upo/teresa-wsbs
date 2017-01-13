@@ -147,8 +147,8 @@ public:
 		  forceFactorGroupRepulsion(1.0),
 		  robotRadius(0.375), //0.35 Radius of the robot plus 2.5 cms.
 		  personRadius(0.35),
-		  robotMaxLinearVelocity(0.5), // 0.6 0.5 0.3
-		  robotMaxAngularVelocity(0.8), // 1.5
+		  robotMaxLinearVelocity(0.6), //0.5 0.6 0.5 0.3
+		  robotMaxAngularVelocity(0.8), // 0.8 1.5
 		  robotMaxLinearAcceleration(0.5), // 1.0 
 		  robotMaxAngularAcceleration(2.0), // 1.0 
 		  lambda(2.0),
@@ -164,7 +164,8 @@ public:
 		  targetLookahead(2.0), //2.0
 		  beta_v(0.4),
 		  beta_d(0.3),
-		  beta_y(0.3)
+		  beta_y(0.3),
+		  target_vel_sma_period(15)
 		{}
 		double forceFactorDesired;
 		double forceFactorObstacle;
@@ -193,6 +194,7 @@ public:
 		double beta_v;
 		double beta_d;
 		double beta_y;
+		unsigned target_vel_sma_period;
 	};
 
 
@@ -237,8 +239,7 @@ private:
 	unsigned xtionPoints;
 	std::vector<Obstacle> laserObstacles;
 	std::vector<Obstacle> xtionObstacles;
-	
-	
+	std::list<utils::Vector2d> targetVelocities;
 };
 
 inline
@@ -836,14 +837,26 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			data.target.angularVelocity = 0;
 			data.targetFound = true;
 			if (fabs(people->personPoses[i].vel) >= params.personVelocityZeroThreshold) {
+				targetVelocities.push_back(velocity);
+				if (targetVelocities.size()>params.target_vel_sma_period) {
+					targetVelocities.pop_front();
+				}
+				utils::Vector2d targetVelocity = velocity;
+				if (params.target_vel_sma_period>1 && targetVelocities.size() == params.target_vel_sma_period) {
+					targetVelocity.set(0,0);
+					for (auto it = targetVelocities.begin(); it != targetVelocities.end(); ++it) {
+						targetVelocity += *it;
+					}
+					targetVelocity /= (double) params.target_vel_sma_period;
+				}
 				data.leftGoal = 
-					data.target.position + params.naiveGoalTime * data.target.velocity +  
-						velocity.normalized().leftNormalVector();
+					data.target.position + params.naiveGoalTime * targetVelocity +  
+						targetVelocity.normalized().leftNormalVector();
 				data.rightGoal =
-					  data.target.position + params.naiveGoalTime * data.target.velocity +
-						  velocity.normalized().rightNormalVector();
+					  data.target.position + params.naiveGoalTime * targetVelocity +
+						  targetVelocity.normalized().rightNormalVector();
 				data.behindGoal =
-					  data.target.position + params.naiveGoalTime * data.target.velocity - velocity.normalized();
+					  data.target.position + params.naiveGoalTime * targetVelocity - targetVelocity.normalized();
 			}
 
 
@@ -877,14 +890,26 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 		data.target.angularVelocity = 0;
 		data.targetFound = true;
 		if (fabs(data.target.linearVelocity) >= params.personVelocityZeroThreshold) {
+			targetVelocities.push_back(velocity);
+			if (targetVelocities.size()>params.target_vel_sma_period) {
+				targetVelocities.pop_front();
+			}
+			utils::Vector2d targetVelocity = velocity;
+			if (params.target_vel_sma_period>1 && targetVelocities.size() == params.target_vel_sma_period) {
+				targetVelocity.set(0,0);
+				for (auto it = targetVelocities.begin(); it != targetVelocities.end(); ++it) {
+					targetVelocity += *it;
+				}
+				targetVelocity /= (double) params.target_vel_sma_period;
+			}
 			data.leftGoal = 
-			data.target.position + params.naiveGoalTime * data.target.velocity +  
-					velocity.normalized().leftNormalVector();
+				data.target.position + params.naiveGoalTime * targetVelocity +  
+					targetVelocity.normalized().leftNormalVector();
 			data.rightGoal =
-				  data.target.position + params.naiveGoalTime * data.target.velocity +
-					  velocity.normalized().rightNormalVector();
+				  data.target.position + params.naiveGoalTime * targetVelocity +
+					  targetVelocity.normalized().rightNormalVector();
 			data.behindGoal =
-				  data.target.position + params.naiveGoalTime * data.target.velocity - velocity.normalized();
+				  data.target.position + params.naiveGoalTime * targetVelocity - targetVelocity.normalized();
 		}
 
 
@@ -931,7 +956,9 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			data.targetHistory.erase(++aux_it,data.targetHistory.end());
 	}
 	*/
-	 
+	if (!data.targetFound) {
+		targetVelocities.clear();
+	}
 	return true;
 }
 

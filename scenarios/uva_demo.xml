@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<!-- goals -->
+	<goal id="printer" x="11" y = "42" r="0.5"/>
+	<goal id="enter_corridor_1" x="15" y="38" r="0.5"/>
+	<goal id="enter_corridor_2" x="17" y="44" r="0.5"/>
+
+	<!-- other waypoints -->
+	<waypoint id="A0" x="10" y="44" r="0.5"/>	
+	<waypoint id="A1" x="12" y="44" r="0.5"/>	
+	<waypoint id="A2" x="14" y="44" r="0.5"/>
+	<waypoint id="A3" x="16" y="44" r="0.5"/>
+	<waypoint id="B0" x="13" y="42" r="0.5"/>
+	<waypoint id="B1" x="15" y="42" r="0.5"/>
+	<waypoint id="C0" x="9"  y="40" r="0.5"/>
+	<waypoint id="C1" x="11"  y="40" r="0.5"/>
+	<waypoint id="C2" x="13"  y="40" r="0.5"/>
+	<waypoint id="C3" x="15"  y="40" r="0.5"/>
+	
+	<waypoint id="corr1_1" x="19" y="43" r="0.5"/>
+	<waypoint id="corr1_2" x="27" y="41.5" r="0.5"/>
+	<waypoint id="corr1_3" x="34" y="40.5" r="0.5"/>
+
+	<waypoint id="corr2_1" x="25" y="36" r="0.5"/>
+	<waypoint id="exit_corridor_2" x="36" y="42" r="0.5"/>
+	<waypoint id="exit_corridor_1" x="36" y="44" r="0.5"/>
+
+	<!-- edges -->
+
+	<edge from="A0" to="A1"/>
+	<edge from="A1" to="A2"/>
+	<edge from="A2" to="A3"/>
+	
+	<edge from="A0" to="printer"/>
+	<edge from="A1" to="printer"/>
+
+	<edge from="printer" to="B0"/>
+	<edge from="B0" to="B1"/>
+	<edge from="A1" to="B0"/>
+	<edge from="A2" to="B0"/>
+	<edge from="A3" to="B0"/>
+	<edge from="A3" to="B1"/>
+
+	<edge from="C0" to="C1"/>
+	<edge from="C1" to="C2"/>
+	<edge from="C2" to="C3"/>
+	<edge from="C0" to="printer"/>
+	<edge from="C1" to="printer"/>
+	<edge from="C1" to="B0"/>
+	<edge from="C2" to="B0"/>
+	<edge from="C2" to="B1"/>
+	<edge from="C3" to="B1"/>
+	<edge from="C2" to="enter_corridor_1"/>
+	<edge from="C3" to="enter_corridor_1"/>
+	<edge from="A3" to="enter_corridor_2"/>
+	<edge from="B1" to="enter_corridor_2"/>
+
+	<edge from="enter_corridor_1" to="corr1_1"/>
+	<edge from="corr1_1" to="corr1_2"/>
+	<edge from="corr1_2" to="corr1_3"/>
+	<edge from="corr1_3" to="exit_corridor_1"/>
+
+	<edge from="enter_corridor_2" to="corr2_1"/>
+	<edge from="corr2_1" to="exit_corridor_2"/>	
+
+</scenario>

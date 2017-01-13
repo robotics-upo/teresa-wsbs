@@ -7,11 +7,11 @@
    <include file="$(find teresa_common)/launch/uva/teresa_robot5/lasers.launch" />
 
   <!--launch the xtion cameras-->
-  <!--<include file="$(find teresa_common)/launch/uva/teresa_robot5/xtionNav.launch" />-->
+  <include file="$(find teresa_common)/launch/uva/teresa_robot5/xtionNav.launch" />
   <!--<include file="$(find teresa_common)/launch/uva/teresa_robot5/xtionPeople.launch" />-->
 
   <!--laser generated from the navigation xtion-->
-  <!--<include file="$(find teresa_common)/launch/uva/teresa_robot5/depthcamscan.launch"/>-->
+ <include file="$(find teresa_common)/launch/uva/teresa_robot5/depthcamscan.launch"/>
 
   <!--transform people receive to UPO messages format-->
   <!--<node pkg="spencer_to_upo_people" type="spencer_to_upo_people" name="spencer_to_upo_people" output="screen" >
@@ -21,8 +21,8 @@
   </node>-->
 
   <!-- Run the map server -->
-  <node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/uva/maps/map.yaml" />
-
+ <node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/uva_lab/maps/uva_lab.yaml" />
+   <!--<node pkg="map_server" type="map_server" name="map_server" args="$(find upo_launchers)/uva_demo/maps/uva_demo.yaml" /> -->
   <!--- amcl -->
   <!--<node pkg="amcl" type="amcl" name="amcl" args="scan:=/scan360_filtered">-->
     <node pkg="amcl" type="amcl" name="amcl" args="scan:=/scan360">

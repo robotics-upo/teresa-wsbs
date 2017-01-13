@@ -38,6 +38,8 @@
 namespace wsbs
 {
 
+#define ABORT_CODE 100
+
 const double PERSON_MESH_SCALE = (2.0 / 8.5 * 1.8)*0.9;
 
 #define	WAITING_FOR_START    0 
@@ -59,6 +61,7 @@ public:
 	~Planner();
 
 private:
+	bool stop();
 	void publishTree();
 	void publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root,
 				animated_marker_msgs::AnimatedMarkerArray& marker_array, double alpha, int& counter);
@@ -79,14 +82,14 @@ private:
 	ros::Publisher target_pose_pub;
 	model::Simulator *simulator;
 	GoalProvider *goalProvider_ptr;
-	bool firstOdom;
-	bool firstPeople;
 	bool running;
+	bool initiated;
 	bool target_hidden;
 	unsigned targetId;
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> *planner_ptr;
 	double robot_cell_size,target_cell_size;
 	ros::Publisher predicted_target_pub;
+	double likelihood_threshold;
 	
 };
 
@@ -94,9 +97,8 @@ inline
 Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 : simulator(NULL),
   goalProvider_ptr(NULL),
-  firstOdom(false),
-  firstPeople(false),
   running(false),
+  initiated(false),
   target_hidden(true),
   targetId(0),
   planner_ptr(NULL)
@@ -117,11 +119,12 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<std::string>("path_file",path_file,"");
 	pn.param<double>("lookahead",lookahead,2.0);
 	pn.param<double>("naive_goal_time",naive_goal_time,2.0);
-	pn.param<double>("timeout",timeout,0.5); // 1.0 
+	pn.param<double>("timeout",timeout,1.0); // 1.0 
 	pn.param<double>("threshold",threshold,0.01);
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,8);
 	pn.param<double>("running_time",running_time,2.0); // 2.0
+	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001);
 	
 	AStarPathProvider pathProvider(path_file);
 	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"map",pathProvider,false);
@@ -153,7 +156,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	unsigned size,depth;
 	model::Observation obs;
 	while(n.ok()) {
-		if (running && firstOdom && firstPeople) {
+		if (running && initiated) {
 			action = planner.getAction();
 			likelyGoal = publishGoals(planner.getCurrentBelief());
 			utils::Vector2d target_pos,target_vel;
@@ -166,24 +169,22 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			planner.computeInfo(size,depth);
 			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
 			publishTree();
-			if (!reset) {
-				mode_srv.request.controller_mode = action;
-				mode_srv.request.target_id = target_hidden ? -1 : targetId;
-				double x = likelyGoal.getX();
-				double y = likelyGoal.getY();
-				mode_srv.request.goal_x = x;
-				mode_srv.request.goal_y = y;
-				x = target_pos.getX();
-				y = target_pos.getY();
-				TF.transformPoint(x,y,"map","odom");
-				mode_srv.request.target_pos_x = x;
-				mode_srv.request.target_pos_y = y;
-				mode_srv.request.target_yaw =  target_vel.angle().toRadian();
-				mode_srv.request.target_vel = target_vel.norm();
-				controller_mode.call(mode_srv);	
-			} else {
-				firstPeople=false;
-			}					
+
+			mode_srv.request.controller_mode = action;
+			mode_srv.request.target_id = target_hidden ? -1 : targetId;
+			double x = likelyGoal.getX();
+			double y = likelyGoal.getY();
+			mode_srv.request.goal_x = x;
+			mode_srv.request.goal_y = y;
+			x = target_pos.getX();
+			y = target_pos.getY();
+			TF.transformPoint(x,y,"map","odom");
+			mode_srv.request.target_pos_x = x;
+			mode_srv.request.target_pos_y = y;
+			mode_srv.request.target_yaw =  target_vel.angle().toRadian();
+			mode_srv.request.target_vel = target_vel.norm();
+			controller_mode.call(mode_srv);	
+							
 			r.sleep();	
 			ros::spinOnce();
 			getObservation(obs);
@@ -418,7 +419,21 @@ bool Planner::start(teresa_wsbs::start::Request &req, teresa_wsbs::start::Respon
 	res = srv.response;
 	if (success && res.error_code==0) {
 		targetId = req.target_id;
+		running=true;
+		initiated=false;
 	} 
+	return success;
+}
+
+bool Planner::stop()
+{
+	teresa_wsbs::stop srv;
+	bool success= controller_stop.call(srv);
+	if (planner_ptr!=NULL) {
+		planner_ptr->reset();
+	}
+	running=false;
+	initiated=false;
 	return success;
 }
 
@@ -429,7 +444,6 @@ bool Planner::stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response 
 	srv.request = req;
 	bool success= controller_stop.call(srv);
 	res = srv.response;
-	firstPeople=false;
 	if (planner_ptr!=NULL) {
 		planner_ptr->reset();
 	}
@@ -444,11 +458,9 @@ void Planner::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
 	x = odom->pose.pose.position.x;
 	y = odom->pose.pose.position.y;
 	double yaw =tf::getYaw(odom->pose.pose.orientation);	
-	
 	if (TF.transformPose(x, y, yaw, odom->header.frame_id, "map")) {
 		simulator->robot_pos.set(x,y);
 		simulator->robot_vel.set(odom->twist.twist.linear.x * std::cos(yaw), odom->twist.twist.linear.x * std::sin(yaw));
-		firstOdom=true;
 	}
 }
 
@@ -484,34 +496,48 @@ double Planner::getTargetLikelihood(double x, double y)
 	}
 	
 	for (auto it = positions.begin(); it!= positions.end(); ++it) {
-		double p = getPDF(x,y,it->first,0.1,0.1,0);
+		double p = getPDF(x,y,it->first,0.25,0.25,0);
 		double w = (double)it->second/(double)planner_ptr->getCurrentBelief().getParticles().size();
 		sum+=p*w;
 	}
 	return sum;
 }
 
-
 void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
 {
+	if (!running) {
+		return;
+	}
 	target_hidden=true;
-	double max=0;
-	unsigned target_id;
-	double target_x;
-	double target_y;
-	double target_yaw;
-	double target_vel;
-	for (unsigned i=0; i< people->personPoses.size(); i++) {
-			
-		double x = people->personPoses[i].position.x;
-		double y = people->personPoses[i].position.y;
-		double yaw = tf::getYaw(people->personPoses[i].orientation);
-		if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
-			std::cout<<targetId<<" "<<people->personPoses[i].id<<" "<<x<<" "<<y<<std::endl;
-			if (firstPeople) {
-				std::cout<<"Particles: "<<planner_ptr->getCurrentBelief().getParticles().size()<<std::endl;
+	if (!initiated) {
+		for (unsigned i=0; i< people->personPoses.size(); i++) {
+			if (people->personPoses[i].id == targetId) {
+				double x = people->personPoses[i].position.x;
+				double y = people->personPoses[i].position.y;
+				double yaw = tf::getYaw(people->personPoses[i].orientation);
+				if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+					simulator->target_pos.set(x,y);
+					simulator->target_vel.set(people->personPoses[i].vel * std::cos(yaw), 
+								people->personPoses[i].vel * std::sin(yaw));
+					target_hidden = false;
+					initiated=true;
+					break;
+				}
+			}
+		}
+	} else {
+		double max=0;
+		unsigned target_id;
+		double target_x;
+		double target_y;
+		double target_yaw;
+		double target_vel;
+		for (unsigned i=0; i< people->personPoses.size(); i++) {
+			double x = people->personPoses[i].position.x;
+			double y = people->personPoses[i].position.y;
+			double yaw = tf::getYaw(people->personPoses[i].orientation);
+			if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
 				double p = getTargetLikelihood(x,y);
-				std::cout<<people->personPoses[i].id<<" "<<p<<std::endl;
 				if (p>max) {
 					target_id = people->personPoses[i].id;
 					target_x = x;
@@ -520,27 +546,21 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 					target_vel = people->personPoses[i].vel;
 					max = p;
 				}
-			} else if (people->personPoses[i].id == targetId) {
-				target_id = people->personPoses[i].id;
-				target_x = x;
-				target_y = y;
-				target_yaw = yaw;
-				target_vel = people->personPoses[i].vel;
-				max = 100;
-				firstPeople=true;
 			}
 		}
-	}
-	
-	if (max>0) {
 		std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
-		targetId = target_id;
-		simulator->target_pos.set(target_x,target_y);
-		simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
-		target_hidden = false;
-	}	
-	
+		if (max>likelihood_threshold) {
+			
+			targetId = target_id;
+			simulator->target_pos.set(target_x,target_y);
+			simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
+			target_hidden = false;
+		}	
+	}
 }
+
+
+
 
 }
 

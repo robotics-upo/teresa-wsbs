@@ -49,12 +49,18 @@ CmdVel::CmdVel()
 		0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8};
 	
 	/*static const std::vector<double> ang_vels = 
+		{-1.0, -0.95, -0.9, -0.85, -0.8, -0.75, -0.7, -0.65, -0.6, -0.55, -0.5, -0.45, -0.4, 
+		-0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 
+		0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0};*/
+
+
+	/*static const std::vector<double> ang_vels = 
 		{-1.5, -1.45, -1.4, -1.35, -1.3, -1.25, -1.2, -1.15, -1.1, -1.05, -1, -0.95, -0.9, -0.85, -0.8, -0.75, -0.7, -0.65, -0.6, -0.55, -0.5, -0.45, -0.4, 
 		-0.35, -0.3, -0.25, -0.2, -0.15, -0.1, -0.05, 0, 0.05, 0.1, 
 		0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5};*/
 
 	static const std::vector<double> lin_vels = 
-		{ 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5 /*, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8*/};
+		{ 0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6 /*, 0.65, 0.7, 0.75, 0.8*/};
 
 
 
@@ -133,23 +139,29 @@ double CmdVel::evaluate(double linVel, double angVel, double dt, const utils::Ve
 inline
 bool CmdVel::compute(double dt)
 {
-	bool finishing;
+	static bool finishing=false;
 	utils::Vector2d velocityRef = FORCES.getData().robot.velocity + FORCES.getData().globalForce * dt;
-	
 	utils::Vector2d positionRef;
-	utils::Angle yawRef;
+	static utils::Angle yawRef;
+	
 	//if (FORCES.getData().targetFound) {
 	//	std::cout<< "DIS: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
 	//	std::cout<< "Vref: "<<velocityRef.norm()<<std::endl;
 	//}
-	if ( FORCES.getData().targetFound &&
-		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= FORCES.getParams().targetLookahead &&
-		velocityRef.norm()<0.2) {
+	std::cout<<"TARGET FOUND: "<<FORCES.getData().targetFound<<std::endl;
+	std::cout<<"DISTANCE TO TARGET: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
+	std::cout<<"TARGET VEL: "<<FORCES.getData().target.velocity.norm()<<std::endl;
+	std::cout<<"Vref: "<<velocityRef.norm()<<std::endl;
+	if ( FORCES.getData().targetFound && FORCES.getData().target.velocity.norm()<0.2 &&
+		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= 1.0/* &&
+		velocityRef.norm()<0.2*/) {
 		velocityRef.set(0,0);
 		positionRef = FORCES.getData().robot.position;
-		yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
+		if (!finishing) {
+			yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
+		}
 		finishing = true;
-
+		std::cout<<"FINISHING"<<std::endl;
 	} else {
 		if (velocityRef.norm() > FORCES.getParams().robotMaxLinearVelocity) {
 			velocityRef.normalize();

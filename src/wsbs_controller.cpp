@@ -40,6 +40,8 @@
 namespace wsbs
 {
 
+#define ABORT_CODE 100
+
 const double PERSON_MESH_SCALE = (2.0 / 8.5 * 1.8)*0.9;
 
 class Controller
@@ -197,8 +199,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("laser_timeout",laser_timeout_threshold,0.5);
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
 	pn.param<double>("people_timeout",people_timeout_threshold,1200.0);
-	pn.param<double>("finish_timeout",finish_timeout_threshold,20);
-	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,200);
+	pn.param<double>("finish_timeout",finish_timeout_threshold,60);
+	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,60);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
@@ -364,7 +366,6 @@ void Controller::checkEndingCondition(bool finishing)
 		setState(ABORTED);
 		return;
 	}
-
 	
 	if (!is_finishing && finishing) {
 		finish_timeout.setTime(ros::Time::now());
@@ -505,6 +506,10 @@ bool Controller::selectMode(teresa_wsbs::select_mode::Request &req, teresa_wsbs:
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		ROS_ERROR("Error: State is %s",getStateId(state));
 		res.error_code = state+1;
+	} else if (req.controller_mode == ABORT_CODE) {
+		ROS_INFO("Abort code received");
+		setState(ABORTED);
+		res.error_code = 0;
 	} else {
 		ROS_INFO("Controller mode is %d",req.controller_mode);
 		controller_mode = (ControllerMode)req.controller_mode;

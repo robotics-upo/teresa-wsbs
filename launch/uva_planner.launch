@@ -5,6 +5,7 @@
 
 	<node pkg="teresa_wsbs" type="wsbs_planner" name="wsbs_planner" output="screen" respawn="false">
 		<param name="path_file" value="$(find teresa_wsbs)scenarios/uva.xml"/>
+		<!--<param name="path_file" value="$(find teresa_wsbs)scenarios/uva_demo.xml"/>-->
 	</node>
    
 
