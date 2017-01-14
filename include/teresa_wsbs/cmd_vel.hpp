@@ -143,7 +143,8 @@ bool CmdVel::compute(double dt)
 	utils::Vector2d velocityRef = FORCES.getData().robot.velocity + FORCES.getData().globalForce * dt;
 	utils::Vector2d positionRef;
 	static utils::Angle yawRef;
-	
+	command.linear.x = 0;
+	command.angular.z = 0;
 	//if (FORCES.getData().targetFound) {
 	//	std::cout<< "DIS: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
 	//	std::cout<< "Vref: "<<velocityRef.norm()<<std::endl;
@@ -152,16 +153,39 @@ bool CmdVel::compute(double dt)
 	std::cout<<"DISTANCE TO TARGET: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
 	std::cout<<"TARGET VEL: "<<FORCES.getData().target.velocity.norm()<<std::endl;
 	std::cout<<"Vref: "<<velocityRef.norm()<<std::endl;
-	if ( FORCES.getData().targetFound && FORCES.getData().target.velocity.norm()<0.2 &&
+	std::cout<<"VALID GOAL: "<<FORCES.getData().validGoal<<std::endl;
+	if (!FORCES.getData().validGoal) {
+		return false;
+	} else if (FORCES.getData().targetFound && FORCES.getData().target.velocity.norm()<0.2 &&
 		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= 1.0/* &&
 		velocityRef.norm()<0.2*/) {
+		std::cout<<"FINISHING"<<std::endl;
+				
+		if (!finishing) {
+			yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
+		}
+		utils::Angle diff = FORCES.getData().robot.yaw - yawRef;
+		if (std::abs(diff.toDegree())<15) {
+			return true;
+		} else if (diff.sign()>0) {
+			command.linear.x = 0;
+			command.angular.z=-0.8;
+			return true;
+		} else {
+			command.linear.x = 0;
+			command.angular.z=0.8;
+			return true;
+		}
+		
+		/*		
 		velocityRef.set(0,0);
 		positionRef = FORCES.getData().robot.position;
 		if (!finishing) {
 			yawRef = (FORCES.getData().target.position - FORCES.getData().robot.position).angle();
 		}
 		finishing = true;
-		std::cout<<"FINISHING"<<std::endl;
+		*/
+		
 	} else {
 		if (velocityRef.norm() > FORCES.getParams().robotMaxLinearVelocity) {
 			velocityRef.normalize();
@@ -171,8 +195,7 @@ bool CmdVel::compute(double dt)
 		yawRef = velocityRef.angle();
 		finishing = false;
 	}
-	command.linear.x = 0;
-	command.angular.z = 0;
+	
 	double min = 999999999;
 	double robot_lin_vel = FORCES.getData().robot.linearVelocity;
 	double robot_ang_vel = FORCES.getData().robot.angularVelocity;

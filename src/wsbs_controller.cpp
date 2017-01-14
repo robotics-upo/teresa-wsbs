@@ -275,13 +275,18 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_timeout.setId("Goal");
 	goal_timeout.setTimeout(goal_timeout_threshold);
 	goal_timeout.setTime(ros::Time::now());
-
+	upo_msgs::PersonPoseArrayUPO arrayAux;
+	arrayAux.header.frame_id="/odom";
+	upo_msgs::PersonPoseArrayUPO::ConstPtr ptr(&arrayAux);
 	ros::Rate r(freq);
 	//double dt = 1/freq;
 	bool finishing;
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
+			if (people_timeout.getTimeElapsed()>1.0) {
+				peopleReceived(ptr);
+			}
 			FORCES.compute(controller_mode, controller_mode_goal);
 			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
 			//finishing = CMD_VEL.compute(dt);

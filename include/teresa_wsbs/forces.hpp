@@ -51,6 +51,7 @@ public:
 	void setTimeout(double timeout) {Timeout::timeout = timeout;}
 	void setTime(const ros::Time& time) {Timeout::time = time;}
 	double getTimeout() const {return timeout;}
+	double getTimeElapsed() const {return (ros::Time::now() - time).toSec();}
 	bool check(const ros::Time& current, bool isError = true) const
 	{
 		if ((current - time).toSec() >= timeout) {
@@ -756,22 +757,27 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 
 	// By default, if the goal is not valid, it will perform an antimove
 	data.validGoal = false;
+	std::cout<<"CONTROLLER MODE: "<<controller_mode<<std::endl;
 	if (params.heuristicPlanner || controller_mode == HEURISTIC) {
 		if (data.targetFound && 
 			(data.robot.position - data.target.position).norm() <= FORCES.getParams().targetLookahead) {
 			if ((data.rightGoal - data.robot.position).squaredNorm() <
 				 (data.leftGoal - data.robot.position).squaredNorm()) {
 				data.goal = data.rightGoal;
+				std::cout<<"1"<<std::endl;
 				data.validGoal = true;
 			} else {
 				data.goal = data.leftGoal;
+				std::cout<<"2"<<std::endl;
 				data.validGoal = true;
 			}
-		} else if (data.pathFound) {
+		} else if (data.pathFound && (data.followGoal - data.robot.position).norm()>0.5) {
+			std::cout<<"3"<<std::endl;
 			data.goal = data.followGoal;
 			data.validGoal = true;
 		}
 	} else {
+		
 		if (controller_mode == SET_GOAL) {
 			/*double x = data.robot.position.getX();
 			double y = data.robot.position.getY();
