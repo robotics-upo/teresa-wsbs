@@ -489,6 +489,7 @@ double Planner::getTargetLikelihood(double x, double y)
 	if (planner_ptr==NULL) {
 		return 0;
 	}
+	std::cout<<"Belief size: "<<planner_ptr->getCurrentBelief().getParticles().size()<<std::endl;
 	double sum=0;
 	std::unordered_map<utils::Vector2d,unsigned> positions;
 	for (auto it = planner_ptr->getCurrentBelief().getParticles().begin(); it != planner_ptr->getCurrentBelief().getParticles().end(); ++it) {
@@ -538,6 +539,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 			double yaw = tf::getYaw(people->personPoses[i].orientation);
 			if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
 				double p = getTargetLikelihood(x,y);
+				std::cout<<"LIKELIHOOD "<<people->personPoses[i].id<<": "<<p<<std::endl;
 				if (p>max) {
 					target_id = people->personPoses[i].id;
 					target_x = x;
