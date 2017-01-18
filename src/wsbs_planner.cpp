@@ -510,7 +510,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		return;
 	}
 	target_hidden=true;
-	if (!initiated) {
+	if (!initiated || planner_ptr->getCurrentBelief().getParticles().size()==0) {
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
 			if (people->personPoses[i].id == targetId) {
 				double x = people->personPoses[i].position.x;
