@@ -36,6 +36,7 @@
 #include <teresa_wsbs/Info.h>
 #include <animated_marker_msgs/AnimatedMarker.h>
 #include <animated_marker_msgs/AnimatedMarkerArray.h>	
+#include <lightsfm/rosmap.hpp>
 
 namespace wsbs
 {
@@ -246,7 +247,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
 	trajectories_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/trajectories", 1);
 	
-	
+	sfm::MAP;
 
 	odom_timeout.setId(odom_id);
 	odom_timeout.setTimeout(odom_timeout_threshold);
@@ -275,18 +276,17 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_timeout.setId("Goal");
 	goal_timeout.setTimeout(goal_timeout_threshold);
 	goal_timeout.setTime(ros::Time::now());
-	
-	upo_msgs::PersonPoseArrayUPO aux;
-	upo_msgs::PersonPoseArrayUPO::ConstPtr ptr_aux(&aux);
-
+	upo_msgs::PersonPoseArrayUPO arrayAux;
+	arrayAux.header.frame_id="/odom";
+	upo_msgs::PersonPoseArrayUPO::ConstPtr ptr(&arrayAux);
 	ros::Rate r(freq);
 	//double dt = 1/freq;
 	bool finishing;
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
-			if ( (people_timeout.getTime() - ros::Time::now()).toSec() >= 1.0 ) {
-				peopleReceived(ptr_aux);
+			if (people_timeout.getTimeElapsed()>=1.0) {
+				peopleReceived(ptr);
 			}
 			FORCES.compute(controller_mode, controller_mode_goal);
 			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);

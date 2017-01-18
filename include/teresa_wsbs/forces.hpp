@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <lightsfm/vector2d.hpp>
 #include <teresa_wsbs/model.hpp>
+#include <lightsfm/rosmap.hpp>
 
 namespace wsbs
 {
@@ -52,6 +53,7 @@ public:
 	void setTime(const ros::Time& time) {Timeout::time = time;}
 	double getTimeout() const {return timeout;}
 	const ros::Time& getTime() const {return time;}
+	double getTimeElapsed() const {return (ros::Time::now() - time).toSec();}
 	bool check(const ros::Time& current, bool isError = true) const
 	{
 		if ((current - time).toSec() >= timeout) {
@@ -166,7 +168,10 @@ public:
 		  beta_v(0.4),
 		  beta_d(0.3),
 		  beta_y(0.3),
-		  target_vel_sma_period(15)
+		  target_vel_sma_period(15),
+                  k_distance_obstacle(-2.0),
+		  k_distance_robot(1.0)
+
 		{}
 		double forceFactorDesired;
 		double forceFactorObstacle;
@@ -196,6 +201,8 @@ public:
 		double beta_d;
 		double beta_y;
 		unsigned target_vel_sma_period;
+		double k_distance_obstacle;
+		double k_distance_robot;
 	};
 
 
@@ -219,9 +226,9 @@ public:
 	bool checkCollision(double linearVelocity, double angularVelocity, double& distance, double& time) const;
 	void computeTargetGroupForces(utils::Vector2d& vis, utils::Vector2d& att, utils::Vector2d& rep) const;
 private:
-
+	bool distanceToObstacle(const utils::Vector2d& point, double& distance, const std::string& frame);
 	static bool compareNorm(const Obstacle& i, const Obstacle& j) {return i.center.squaredNorm() < j.center.squaredNorm();}
-	
+	bool isTrajectoryObstructed(const utils::Vector2d& start, const utils::Vector2d& goal);
 	
 	#define PW(x) ((x)*(x))
 	Forces();
@@ -229,6 +236,7 @@ private:
 	utils::Vector2d computeSocialForce(const utils::Vector2d& position, const utils::Vector2d& velocity) const;
 	void computeDesiredForce();
 	void selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
+	void selectGoal1(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
 	void computeGroupForce();
 	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
@@ -751,7 +759,103 @@ bool Forces::transformPoint(double& x, double& y, const std::string& sourceFrame
 
 
 inline
+bool Forces::distanceToObstacle(const utils::Vector2d& point, double& distance, const std::string& frame)
+{
+	double x = point.getX();
+	double y = point.getY();
+	if (!transformPoint(x,y,frame,"map")) {
+		return false;
+	}
+	utils::Vector2d aux(x,y);
+	distance = sfm::MAP.getNearestObstacle(aux).distance;
+	return true;
+}
+
+inline
+bool Forces::isTrajectoryObstructed(const utils::Vector2d& start, const utils::Vector2d& goal)
+{
+	// start and goal in map frame
+	utils::Vector2d u = goal - start;
+	double distance = u.norm();
+	u = (u/distance) * 0.05;
+	utils::Vector2d w;
+	while (w.norm() < distance) {
+		if (sfm::MAP.isObstacle(start+w)) {
+			return true;
+		}
+		w+=u;
+	}
+	return false;
+}
+
+inline
 void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
+{
+	data.validGoal = false;
+	if (data.targetFound && 
+			(data.robot.position - data.target.position).norm() <= FORCES.getParams().targetLookahead) {
+
+		double robot_x = data.robot.position.getX();
+		double robot_y = data.robot.position.getY();
+		double right_x = data.rightGoal.getX();
+		double right_y = data.rightGoal.getY();
+		double left_x = data.leftGoal.getX();
+		double left_y = data.leftGoal.getY();	
+		double behind_x = data.behindGoal.getX();
+		double behind_y = data.behindGoal.getY();
+
+		if (!transformPoint(robot_x,robot_y,"odom","map") ||
+			!transformPoint(right_x,right_y,"odom","map") ||	
+			!transformPoint(left_x,left_y,"odom","map") ||
+			!transformPoint(behind_x,behind_y,"odom","map")) {
+			return;
+		}
+		utils::Vector2d start(robot_x,robot_y);
+		utils::Vector2d goal(left_x,left_y);
+		bool left_obstructed = isTrajectoryObstructed(start,goal);
+		double left_value = params.k_distance_obstacle * sfm::MAP.getNearestObstacle(goal).distance + 
+					params.k_distance_robot * (data.leftGoal - data.robot.position).norm();
+		goal.set(right_x,right_y);
+		bool right_obstructed = isTrajectoryObstructed(start,goal);
+		double right_value = params.k_distance_obstacle * sfm::MAP.getNearestObstacle(goal).distance + 
+					params.k_distance_robot * (data.rightGoal - data.robot.position).norm();
+		goal.set(behind_x,behind_y);
+		bool behind_obstructed = isTrajectoryObstructed(start,goal);
+		
+		if (left_obstructed && right_obstructed && behind_obstructed && data.pathFound) {
+			data.goal = data.followGoal;
+			data.validGoal = true;
+			return;
+		}	
+		
+		if (left_obstructed && right_obstructed && !behind_obstructed) {
+			data.goal = data.behindGoal;
+			data.validGoal = true;
+			return;
+		}
+		if (left_obstructed || right_value < left_value) {
+			data.goal = data.rightGoal;
+			data.validGoal = true;
+			return;
+		}
+		if (right_obstructed || left_value < right_value) {
+			data.goal = data.leftGoal;
+			data.validGoal = true;
+			return;
+
+		}
+
+			
+	} else if (data.pathFound) {
+		data.goal = data.followGoal;
+		data.validGoal = true;
+	}
+
+} 
+
+
+inline
+void Forces::selectGoal1(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
 {
 	//static  model::AStarPathProvider aStar;
 
@@ -773,6 +877,7 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 			data.validGoal = true;
 		}
 	} else {
+		
 		if (controller_mode == SET_GOAL) {
 			/*double x = data.robot.position.getX();
 			double y = data.robot.position.getY();
@@ -861,16 +966,17 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 			}
 
 
-			if (data.targetHistory.empty() || (position - data.targetHistory.front().position).norm() > 0.5) {
+			if (data.targetHistory.empty() || (position - data.targetHistory.front().position).norm() > 0.25) {
 				data.targetHistory.push_front(data.target);
-				if (data.targetHistory.size()>100) {
-					auto it = data.targetHistory.rbegin();
-					++it;
-					if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
-						data.targetHistory.pop_back();
-					} else {
-						data.targetHistory.pop_front();
-					}
+				if (data.targetHistory.size()>20) {
+					data.targetHistory.pop_back();
+					//auto it = data.targetHistory.rbegin();
+					//++it;
+					//if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
+					//	data.targetHistory.pop_back();
+					//} else {
+					//	data.targetHistory.pop_front();
+					//}
 				}
 			}
 		}
@@ -914,27 +1020,42 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 		}
 
 
-		if (data.targetHistory.empty() || (position - data.targetHistory.front().position).norm() > 0.5) {
+		if (data.targetHistory.empty() || (position - data.targetHistory.front().position).norm() > 0.2) {
 			data.targetHistory.push_front(data.target);
-			if (data.targetHistory.size()>100) {
-				auto it = data.targetHistory.rbegin();
-				++it;
-				if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
-					data.targetHistory.pop_back();
-				} else {
-					data.targetHistory.pop_front();
-				}
+			if (data.targetHistory.size()>20) {
+				data.targetHistory.pop_back();
+				//auto it = data.targetHistory.rbegin();
+				//++it;
+				//if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
+				//	data.targetHistory.pop_back();
+				//} else {
+				//	data.targetHistory.pop_front();
+				//}
 			}
 		}
 		
 	}	
-
-	for (auto it = data.targetHistory.begin(); it!= data.targetHistory.end(); ++it) {
-		if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
-			data.pathFound = true;
-			data.followGoal = it->position;
-			data.targetHistory.erase(++it,data.targetHistory.end());
-			break;	
+	double x = data.robot.position.getX();
+	double y = data.robot.position.getY();
+	if (transformPoint(x,y,"odom","map")) {
+		utils::Vector2d start(x,y);
+		bool first=true;
+		for (auto it = data.targetHistory.begin(); it!= data.targetHistory.end(); ++it) {
+			if ((data.robot.position - it->position).norm() <= FORCES.getParams().targetLookahead) {
+				double x = it->position.getX();
+				double y = it->position.getY();
+				if (transformPoint(x,y,"odom","map")) {
+					utils::Vector2d goal(x,y);
+					if (!isTrajectoryObstructed(start,goal)) {
+						if (!first) {
+							data.pathFound = true;
+							data.followGoal = it->position;
+						}
+						break;
+					}
+				}	
+			}
+			first=false;
 		}
 	}
 

@@ -7,7 +7,8 @@
 	/imu/data 
 	/odom 
 	/cmd_vel 
-	/scan360 
+	/scan360
+	/tracker_node/people_markers 
 	/people/navigation
 	/wsbs/markers/scan 
 	/wsbs/status 
