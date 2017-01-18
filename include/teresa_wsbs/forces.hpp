@@ -51,6 +51,7 @@ public:
 	void setTimeout(double timeout) {Timeout::timeout = timeout;}
 	void setTime(const ros::Time& time) {Timeout::time = time;}
 	double getTimeout() const {return timeout;}
+	const ros::Time& getTime() const {return time;}
 	bool check(const ros::Time& current, bool isError = true) const
 	{
 		if ((current - time).toSec() >= timeout) {

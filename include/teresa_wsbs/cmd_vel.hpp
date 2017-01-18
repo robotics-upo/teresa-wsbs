@@ -152,6 +152,7 @@ bool CmdVel::compute(double dt)
 	std::cout<<"DISTANCE TO TARGET: "<<(FORCES.getData().robot.position - FORCES.getData().target.position).norm()<<std::endl;
 	std::cout<<"TARGET VEL: "<<FORCES.getData().target.velocity.norm()<<std::endl;
 	std::cout<<"Vref: "<<velocityRef.norm()<<std::endl;
+	std::cout<<"History size: "<<FORCES.getData().targetHistory.size()<<std::endl;
 	if ( FORCES.getData().targetFound && FORCES.getData().target.velocity.norm()<0.2 &&
 		(FORCES.getData().robot.position - FORCES.getData().target.position).norm() <= 1.0/* &&
 		velocityRef.norm()<0.2*/) {
