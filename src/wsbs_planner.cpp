@@ -112,18 +112,18 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
-	pn.param<double>("freq",freq,0.5); //2.0
-	pn.param<double>("discount",discount,0.75);
+	pn.param<double>("freq",freq,1.0); //0.5 2.0
+	pn.param<double>("discount",discount,0.9); // 0.75
 	pn.param<double>("robot_cell_size",robot_cell_size,1.0);
 	pn.param<double>("target_cell_size",target_cell_size,1.0);
 	pn.param<std::string>("path_file",path_file,"");
 	pn.param<double>("lookahead",lookahead,2.0);
 	pn.param<double>("naive_goal_time",naive_goal_time,2.0);
 	pn.param<double>("timeout",timeout,1.0); // 1.0 
-	pn.param<double>("threshold",threshold,0.01);
+	pn.param<double>("threshold",threshold,0.6); // 0.01
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,8);
-	pn.param<double>("running_time",running_time,2.0); // 2.0
+	pn.param<double>("running_time",running_time,1.0); // 2.0
 	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001);
 	
 	AStarPathProvider pathProvider(path_file);
@@ -529,15 +529,23 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 	} else {
 		double max=0;
 		unsigned target_id;
-		double target_x;
-		double target_y;
-		double target_yaw;
-		double target_vel;
+		double target_x, target_id_x=0;
+		double target_y, target_id_y=0;
+		double target_yaw, target_id_yaw=0;
+		double target_vel, target_id_vel=0;
+		bool target_id_found=false;
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
 			double x = people->personPoses[i].position.x;
 			double y = people->personPoses[i].position.y;
 			double yaw = tf::getYaw(people->personPoses[i].orientation);
 			if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+				if (people->personPoses[i].id == targetId) {
+					target_id_x=x;
+					target_id_y=y;
+					target_id_yaw=yaw;
+					target_id_vel= people->personPoses[i].vel;
+					target_id_found=true;
+				}
 				double p = getTargetLikelihood(x,y);
 				std::cout<<"LIKELIHOOD "<<people->personPoses[i].id<<": "<<p<<std::endl;
 				if (p>max) {
@@ -552,10 +560,13 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		}
 		std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
 		if (max>likelihood_threshold) {
-			
 			targetId = target_id;
 			simulator->target_pos.set(target_x,target_y);
 			simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
+			target_hidden = false;
+		} else if (target_id_found) {
+			simulator->target_pos.set(target_id_x,target_id_y);
+			simulator->target_vel.set(target_id_vel * std::cos(target_id_yaw), target_id_vel * std::sin(target_id_yaw));
 			target_hidden = false;
 		}	
 	}

@@ -224,7 +224,8 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents.resize(2);
 	agents[0].position = state.robot_pos;
 	agents[0].velocity = state.robot_vel;
-	agents[0].desiredVelocity = 0.6;
+	agents[0].desiredVelocity = state.target_vel.norm();	
+	//agents[0].desiredVelocity = 0.6;
 	agents[0].yaw = state.robot_vel.angle();	
 	const ControllerMode& action = getAction(actionIndex);
 	sfm::Goal robotGoal;
