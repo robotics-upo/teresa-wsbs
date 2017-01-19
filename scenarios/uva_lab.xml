@@ -1,24 +1,95 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <scenario>
 	<!-- goals -->
-	<goal id="enter_corridor" x="17.08" y="11.95" r="0.5"/>
-	<goal id="exit_corridor" x="34" y="30" r="0.5"/>
-	<goal id="lab" x="22.53" y="20.84" r="0.5"/>
-	<goal id="office" x="26.05" y="25.56" r="0.5"/>
-	<goal id="coffee" x="28.48" y="28.86" r="0.5"/>
+	<goal id="1" x="16.5199" y="11.383" r="0.5"/>	
+	<goal id="14" x="22.7287" y="21.254" r="0.5"/>
+	<goal id="23" x="26.3139" y="26.1159" r="0.5"/>
+	<goal id="34" x="28.4714" y="28.7997" r="0.5"/>
+	<goal id="29" x="34.6998" y="30.8605" r="0.5"/>
 
-	<!-- other waypoints -->
-	<waypoint id="enter_lab" x="24.12" y="19.45" r="0.5"/>
-	<waypoint id="enter_office" x="28.21" y="23.84" r="0.5"/>
-	<waypoint id="enter_coffee" x="30.93" y="26.9" r="0.5"/>
+	<!-- waypoints -->
+	<waypoint id="2" x="17.4979" y="12.2864" r="0.5"/>
+	<waypoint id="3" x="18.456" y="13.3397" r="0.5"/>
+	<waypoint id="4" x="19.5645" y="14.5772" r="0.5"/>
+	<waypoint id="5" x="20.7891" y="15.821" r="0.5"/>
+	<waypoint id="6" x="21.7623" y="16.9038" r="0.5"/>
+	<waypoint id="7" x="23.032" y="18.2135" r="0.5"/>
+	<waypoint id="8" x="24.308" y="19.6429" r="0.5"/>
+	<waypoint id="9" x="23.5412" y="20.4739" r="0.5"/>
+	<waypoint id="10" x="22.2066" y="19.7325" r="0.5"/>
+	<waypoint id="11" x="21.5952" y="20.7453" r="0.5"/>
+	<waypoint id="12" x="21.949" y="22.0147" r="0.5"/>
+	<waypoint id="13" x="23.3478" y="22.0471" r="0.5"/>
+	<waypoint id="15" x="24.2436" y="21.4282" r="0.5"/>
+	<waypoint id="16" x="25.7573" y="21.0224" r="0.5"/>
+	<waypoint id="17" x="26.7894" y="22.0534" r="0.5"/>
+	<waypoint id="18" x="27.724" y="23.0202" r="0.5"/>
+	<waypoint id="19" x="27.5563" y="24.1673" r="0.5"/>
+	<waypoint id="20" x="27.3629" y="25.3402" r="0.5"/>
+	<waypoint id="21" x="26.4553" y="24.4196" r="0.5"/>
+	<waypoint id="22" x="25.5337" y="25.2518" r="0.5"/>
+	<waypoint id="24" x="29.0259" y="24.3479" r="0.5"/>
+	<waypoint id="25" x="30.1023" y="25.4371" r="0.5"/>
+	<waypoint id="26" x="31.0785" y="26.7023" r="0.5"/>
+	<waypoint id="27" x="32.3294" y="27.9789" r="0.5"/>
+	<waypoint id="28" x="33.4448" y="29.2298" r="0.5"/>
+	<waypoint id="33" x="29.7987" y="27.5942" r="0.5"/>
+	<waypoint id="35" x="27.4807" y="29.7271" r="0.5"/>
+	<waypoint id="36" x="25.3736" y="26.2809" r="0.5"/>
 
 	<!-- edges -->
-	<edge from="enter_corridor" to="enter_lab"/>
-	<edge from="enter_lab" to="lab"/>
-	<edge from="enter_lab" to="enter_office"/>
-	<edge from="enter_office" to="office"/>
-	<edge from="enter_office" to="enter_coffee"/>
-	<edge from="enter_coffee" to="coffee"/>
-	<edge from="enter_coffee" to="exit_corridor"/>
-	
+	<edge from="1" to="2"/>
+	<edge from="2" to="3"/>
+	<edge from="3" to="4"/>
+	<edge from="4" to="5"/>
+	<edge from="5" to="6"/>
+	<edge from="6" to="7"/>
+	<edge from="7" to="8"/>
+	<edge from="8" to="9"/>
+	<edge from="9" to="15"/>
+	<edge from="9" to="10"/>
+	<edge from="9" to="11"/>
+	<edge from="9" to="14"/>
+	<edge from="9" to="13"/>
+	<edge from="13" to="12"/>
+	<edge from="14" to="12"/>
+	<edge from="11" to="12"/>
+	<edge from="10" to="11"/>
+	<edge from="15" to="13"/>
+	<edge from="9" to="16"/>
+	<edge from="9" to="7"/>
+	<edge from="8" to="16"/>
+	<edge from="16" to="17"/>
+	<edge from="17" to="18"/>
+	<edge from="18" to="19"/>
+	<edge from="18" to="24"/>
+	<edge from="24" to="19"/>
+	<edge from="19" to="20"/>
+	<edge from="19" to="21"/>
+	<edge from="21" to="20"/>
+	<edge from="20" to="23"/>
+	<edge from="21" to="22"/>
+	<edge from="13" to="14"/>
+	<edge from="14" to="11"/>
+	<edge from="14" to="10"/>
+	<edge from="14" to="15"/>
+	<edge from="22" to="23"/>
+	<edge from="22" to="20"/>
+	<edge from="23" to="21"/>
+	<edge from="22" to="36"/>
+	<edge from="36" to="23"/>
+	<edge from="24" to="25"/>
+	<edge from="25" to="33"/>
+	<edge from="25" to="26"/>
+	<edge from="26" to="33"/>
+	<edge from="27" to="33"/>
+	<edge from="26" to="27"/>
+	<edge from="33" to="34"/>
+	<edge from="34" to="35"/>
+	<edge from="27" to="28"/>
+	<edge from="28" to="29"/>
+
+	<agent x="22" y="21" n="1" dx="1" dy="1" type="2">
+								
+	</agent>
 </scenario>
