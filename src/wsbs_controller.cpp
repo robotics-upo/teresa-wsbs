@@ -93,6 +93,7 @@ private:
 	void publishForceMarker(unsigned index, const std_msgs::ColorRGBA& color, 
 					const utils::Vector2d& force, visualization_msgs::MarkerArray& markers);
 
+	
 	void publishTrajectories();
 	void stopRobot();
 	void setState(const State& state);
@@ -160,6 +161,9 @@ private:
 	double targetMarkerVel;
 	double targetMarkerYaw;
 	bool use_estimated_target;
+	
+	std::vector<utils::Vector2d> goals;
+	std::vector<double> goalProbs;
 };
 
 
@@ -226,7 +230,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	ros::ServiceServer select_mode_srv  = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
 
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Controller::peopleReceived,this);
-
+	
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Controller::odomReceived,this);
 	ros::Subscriber laser_sub = n.subscribe<sensor_msgs::LaserScan>(laser_id, 1, &Controller::laserReceived,this);
 	scan_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/scan",1);
@@ -298,6 +302,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishGoal();
 			publishTrajectories();
 			publishScan();
+			
 			if (publish_target && FORCES.getData().targetFound) {
 				publishTarget();
 			}
@@ -363,6 +368,8 @@ void Controller::setLeds()
 		ROS_ERROR("Error trying to set robot leds");
 	}	
 }
+
+
 
 
 void Controller::checkEndingCondition(bool finishing)
@@ -551,6 +558,7 @@ std_msgs::ColorRGBA Controller::getColor(double r, double g, double b, double a)
 
 void Controller::publishTarget()
 {
+	
 	animated_marker_msgs::AnimatedMarkerArray marker_array;
 	animated_marker_msgs::AnimatedMarker marker;
        	marker.mesh_use_embedded_materials = true;
@@ -575,7 +583,36 @@ void Controller::publishTarget()
 			
 	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
   	marker.animation_speed = targetMarkerVel * 0.7;
-	marker_array.markers.push_back(marker);
+
+	// Put the robot
+	animated_marker_msgs::AnimatedMarker marker1;
+       	marker1.mesh_use_embedded_materials = true;
+	marker1.lifetime = ros::Duration(1.0);	
+	marker1.header.frame_id = odom_id;
+	marker1.header.stamp = ros::Time::now();
+	marker1.action = 0;
+	marker1.id = 1;	
+	marker1.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
+	marker1.mesh_resource = "package://teresa_wsbs/images/full_TERESA.dae";
+	marker1.pose.position.x = FORCES.getData().robot.position.getX();
+	marker1.pose.position.y = FORCES.getData().robot.position.getY();
+	marker1.scale.x = PERSON_MESH_SCALE*0.25;
+	marker1.scale.y = PERSON_MESH_SCALE*0.25;
+	marker1.scale.z = PERSON_MESH_SCALE*0.25;
+	marker1.color.a = 1.0;
+	marker1.color.r = 1.0;//0.882;
+	marker1.color.g = 1.0;//0.412;
+	marker1.color.b = 1.0;//0.255;
+	marker1.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(
+						0.0, 0.0, FORCES.getData().robot.yaw.toRadian()-M_PI*0.5);
+  	marker1.animation_speed = FORCES.getData().robot.velocity.norm() * 0.7;
+	
+
+	
+	marker_array.markers.push_back(marker);	
+	marker_array.markers.push_back(marker1);
+
+	
 	target_pub.publish(marker_array);
 }
 

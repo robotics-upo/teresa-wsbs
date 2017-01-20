@@ -61,6 +61,9 @@ public:
 	~Planner();
 
 private:
+	void publishPrediction();	
+	void publishPrediction(animated_marker_msgs::AnimatedMarkerArray& marker_array, unsigned& counter,
+				const utils::Vector2d& goal, double probability, double dt);
 	bool stop();
 	void publishTree();
 	void publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root,
@@ -72,7 +75,7 @@ private:
 	void peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
 	static double getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov);
 	double getTargetLikelihood(double x, double y);
-	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief) const;
+	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief);
 	model::Observation& getObservation(model::Observation& observation);
 	ros::ServiceClient controller_start;
 	ros::ServiceClient controller_stop;
@@ -89,7 +92,9 @@ private:
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> *planner_ptr;
 	double robot_cell_size,target_cell_size;
 	ros::Publisher predicted_target_pub;
+	ros::Publisher predicted_trajectory_pub;
 	double likelihood_threshold;
+	std::map<utils::Vector2d, double> goals;
 	
 };
 
@@ -144,6 +149,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	belief_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/belief", 1);
 	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);	
 	predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
+	predicted_trajectory_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_trajectory", 1);
 	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout,threshold,exploration_constant);
 	planner_ptr = &planner;
@@ -159,6 +165,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 		if (running && initiated) {
 			action = planner.getAction();
 			likelyGoal = publishGoals(planner.getCurrentBelief());
+			publishPrediction();
 			utils::Vector2d target_pos,target_vel;
 			for (auto it = planner.getCurrentBelief().getParticles().begin(); it != planner.getCurrentBelief().getParticles().end(); ++it) {
 				target_pos += (it->target_pos);
@@ -168,7 +175,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			target_vel /= planner.getCurrentBelief().size();
 			planner.computeInfo(size,depth);
 			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
-			publishTree();
+			//publishTree(); 
 
 			mode_srv.request.controller_mode = action;
 			mode_srv.request.target_id = target_hidden ? -1 : targetId;
@@ -202,6 +209,124 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 }
 
+void Planner::publishPrediction()
+{
+	animated_marker_msgs::AnimatedMarkerArray marker_array;	
+	unsigned counter=0;
+
+	
+	
+	for (auto it = goals.begin(); it!= goals.end(); ++it) {
+		publishPrediction(marker_array, counter, it->first, it->second, 0.5);
+	}
+	predicted_trajectory_pub.publish(marker_array);
+
+}
+
+void Planner::publishPrediction(animated_marker_msgs::AnimatedMarkerArray& marker_array, unsigned& counter,
+				const utils::Vector2d& goal, double probability, double dt)
+{
+	std::vector<sfm::Agent> agents;
+	agents.resize(2);
+	agents[0].position = simulator->robot_pos;
+	agents[0].velocity = simulator->robot_vel;
+	agents[0].desiredVelocity = 0.6;
+	agents[0].yaw = simulator->robot_vel.angle();	
+	agents[0].groupId = 0;
+
+	agents[1].position = simulator->target_pos;
+	agents[1].velocity = simulator->target_vel;
+	agents[1].yaw = simulator->target_vel.angle();
+	agents[1].desiredVelocity = 0.6;
+ 	agents[1].groupId = 0;
+	sfm::Map *map = &sfm::MAP;
+	unsigned publish=0;
+
+	
+		for (unsigned iteration=0; iteration<200 && (agents[1].position - goal).norm() > 0.5; iteration++) {
+		sfm::Goal robotLocalGoal;
+		robotLocalGoal.radius = 0.5;
+		goalProvider_ptr->getPathProvider().getNextPoint(agents[0].position,goal,robotLocalGoal.center);
+		agents[0].goals.clear();		
+		agents[0].goals.push_back(robotLocalGoal);
+
+		sfm::Goal targetLocalGoal;
+		targetLocalGoal.radius = 0.5;
+		goalProvider_ptr->getPathProvider().getNextPoint(agents[1].position,goal,targetLocalGoal.center);
+		agents[1].goals.clear();		
+		agents[1].goals.push_back(targetLocalGoal);
+
+		sfm::SFM.computeForces(agents,map);
+		sfm::SFM.updatePosition(agents,dt);
+		
+		animated_marker_msgs::AnimatedMarker marker;
+       		marker.mesh_use_embedded_materials = true;
+		marker.lifetime = ros::Duration(1.0);	
+		marker.header.frame_id = "map";
+		marker.header.stamp = ros::Time::now();
+		marker.action = 0;
+		
+		marker.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
+		marker.mesh_resource = "package://teresa_wsbs/images/animated_walking_man.mesh";
+		marker.pose.position.x = agents[1].position.getX();
+		marker.pose.position.y = agents[1].position.getY();
+		marker.action = 0; 
+		marker.scale.x = PERSON_MESH_SCALE;
+		marker.scale.y = PERSON_MESH_SCALE;
+		marker.scale.z = PERSON_MESH_SCALE;
+		marker.color.a = probability*0.5;
+		marker.color.r = 0.255;
+		marker.color.g = 0.412;
+		marker.color.b = 0.882;
+	
+		
+		marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(
+						M_PI*0.5, 0.0, agents[1].velocity.angle().toRadian()+M_PI*0.5);
+  		marker.animation_speed = agents[1].velocity.norm() * 0.7;
+
+		/*
+		animated_marker_msgs::AnimatedMarker marker1;
+       		marker1.mesh_use_embedded_materials = true;
+		marker1.lifetime = ros::Duration(1.0);	
+		marker1.header.frame_id = "map";
+		marker1.header.stamp = ros::Time::now();
+		marker1.action = 0;
+		
+		marker1.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
+		marker1.mesh_resource = "package://teresa_wsbs/images/full_TERESA.dae";
+		marker1.pose.position.x = agents[0].position.getX();
+		marker1.pose.position.y = agents[0].position.getY();
+		marker1.action = 0; 
+		marker1.scale.x = PERSON_MESH_SCALE*0.25;
+		marker1.scale.y = PERSON_MESH_SCALE*0.25;
+		marker1.scale.z = PERSON_MESH_SCALE*0.25;
+		marker1.color.a = probability*0.5;
+		marker1.color.r = 0.882;
+		marker1.color.g = 0.412;
+		marker1.color.b = 0.255;
+	
+	
+		marker1.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(
+						0.0, 0.0, agents[0].velocity.angle().toRadian()+M_PI*0.5);
+  		marker1.animation_speed = agents[0].velocity.norm() * 0.7;
+		*/
+		publish++;		
+		if (publish==3 || (agents[1].position - goal).norm() <= 0.5) {
+			marker.id = counter++;
+			//marker1.id = counter++;
+			marker_array.markers.push_back(marker);
+			//marker_array.markers.push_back(marker1);
+			publish=0;
+		}
+		
+		
+	}
+
+}
+
+
+
+
 inline
 Planner::~Planner()
 {
@@ -222,7 +347,7 @@ void Planner::publishTree()
 void Planner::publishTree(const pomcp::Node<model::State,model::Observation, pomcp::VectorBelief<wsbs::model::State>> *root, 
 				animated_marker_msgs::AnimatedMarkerArray& marker_array, double alpha, int& counter)
 {
-	if (root == NULL || root->belief.size()==0) {
+	if (root == NULL || root->belief.size()<20) {
 		return;
 	}
 	utils::Vector2d target_pos,target_vel;
@@ -281,14 +406,14 @@ model::Observation& Planner::getObservation(model::Observation& observation)
 
 
 
-utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& belief) const
+utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& belief)
 {
 	utils::Vector2d likelyGoal;
 	utils::Vector2d targetPos;
 	utils::Vector2d targetVel;	
 	int index=0;
 	
-	std::map<utils::Vector2d, double> goals;
+	goals.clear();
 	visualization_msgs::MarkerArray belief_markers; 
 	for (auto it = belief.getParticles().cbegin(); it!= belief.getParticles().cend(); ++it) {
 		if (goals.count(it->goal)==0) {
@@ -367,6 +492,8 @@ utils::Vector2d Planner::publishGoals(const pomcp::VectorBelief<model::State>& b
 	double max=0;
 	index=0;
 	visualization_msgs::MarkerArray goal_markers; 
+
+
 	for (auto it = goals.begin(); it != goals.end(); ++it) {
 		visualization_msgs::Marker marker;
 		marker.header.frame_id = "map";
@@ -497,7 +624,7 @@ double Planner::getTargetLikelihood(double x, double y)
 	}
 	
 	for (auto it = positions.begin(); it!= positions.end(); ++it) {
-		double p = getPDF(x,y,it->first,0.25,0.25,0);
+		double p = getPDF(x,y,it->first,0.2,0.2/*0.25,0.25*/,0);
 		double w = (double)it->second/(double)planner_ptr->getCurrentBelief().getParticles().size();
 		sum+=p*w;
 	}

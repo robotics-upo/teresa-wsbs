@@ -214,7 +214,8 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 		a=b;
 	}
 	nextState=a;
-	return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
+	return false;	
+	//return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
 }
 
 inline
@@ -252,23 +253,30 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	sfm::SFM.updatePosition(agents,dt);
 	
 	
-	nextState.robot_pos = agents[0].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
+	nextState.robot_pos = agents[0].position+utils::Vector2d(utils::RANDOM(0,0.2),utils::RANDOM(0,0.2));
 	nextState.robot_vel = agents[0].velocity;
 	
-	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.25),utils::RANDOM(0,0.25));
+	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.2),utils::RANDOM(0,0.2));
 	nextState.target_vel = agents[1].velocity;
 	
+	double p = (nextState.target_pos - state.goal).norm()<1.0 ? 0.01 : 0.1; 
+
 	// TODO: Cambiar goal con una probabilidad
-	if ((nextState.target_pos - state.goal).norm()<0.01) {
+	if (utils::RANDOM()<p /* 0.1 0.01*/) {
 		nextState.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
 	} else {
 		nextState.goal = state.goal;
-	}
+	}	
+	//if ((nextState.target_pos - state.goal).norm()<0.1 /* 0.1 0.01*/) {
+	//	nextState.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
+	//} else {
+	//	nextState.goal = state.goal;
+	//}
 	
 	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
 	
-
-	return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
+	return false;
+	//return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
 	
 
 

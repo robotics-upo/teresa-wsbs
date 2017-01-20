@@ -6,32 +6,7 @@
 	<goal id="glass_wall" x="43.55" y="20.2" r="0.5"/>
 	<goal id="65" x="35.1151" y="22.0649" r="0.5"/> <!-- enter large corridor -->
 	<goal id="24" x="34.1151" y="15.5978" r="0.5"/> <!-- enter narrow corridor -->
-	<!-- target -->
 	
-
-	<agent x="39.7" y="17.45" n="1" dx="1" dy="1" type="2">
-		<addwaypoint id="glass_wall"/>		
-		<addwaypoint id="hall"/>
-		<addwaypoint id="automatic_door"/>
-		<addwaypoint id="printer"/>
-		<addwaypoint id="narrow_corridor"/>
-		<addwaypoint id="home"/>							
-	</agent>
-
-	<!-- people -->
-	<!--<agent x="35.8" y="29.7" n="2" dx="1" dy="1" type="1">
-		<addwaypoint id="student_corridor"/>
-		<addwaypoint id="lab_corridor"/>
-	</agent>
-
-	<agent x="44.25" y="12.25" n="2" dx="1" dy="1" type="1">
-		<addwaypoint id="lab_corridor"/>
-		<addwaypoint id="student_corridor"/>
-	</agent>
-
-	<agent  x="39.8" y="20" n="3"  dx="1" dy="1" type="1">
-	</agent>-->
-
 	<!-- waypoints -->
 	<waypoint id="hall" x="37.4" y="22.7" r="0.5"/>	
 	<waypoint id="lab_corridor" x="35.8" y="29.7" r="0.5"/>	
@@ -127,6 +102,33 @@
 	<waypoint id="120" x="38.6681" y="13.2" r="0.5"/>
 	<waypoint id="121" x="39.4007" y="14.3935" r="0.5"/>
 	<waypoint id="122" x="38.1639" y="15.0197" r="0.5"/>
+
+	<!-- target -->
+	<agent x="39.7" y="17.45" n="1" dx="1" dy="1" type="2">
+		<addwaypoint id="glass_wall"/>		
+		<addwaypoint id="hall"/>
+		<addwaypoint id="automatic_door"/>
+		<addwaypoint id="printer"/>
+		<addwaypoint id="narrow_corridor"/>
+		<addwaypoint id="home"/>							
+	</agent>
+
+	<!-- people -->
+	<!--<agent x="35.8" y="29.7" n="2" dx="1" dy="1" type="1">
+		<addwaypoint id="student_corridor"/>
+		<addwaypoint id="lab_corridor"/>
+	</agent>
+
+	<agent x="44.25" y="12.25" n="2" dx="1" dy="1" type="1">
+		<addwaypoint id="lab_corridor"/>
+		<addwaypoint id="student_corridor"/>
+	</agent>
+
+	<agent  x="39.8" y="20" n="3"  dx="1" dy="1" type="1">
+	</agent>-->
+
+
+
 	<!-- edges -->
 	<edge from="2" to="6"/>
 	<edge from="6" to="7"/>
