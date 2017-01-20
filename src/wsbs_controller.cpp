@@ -162,8 +162,8 @@ private:
 	double targetMarkerYaw;
 	bool use_estimated_target;
 	
-	std::vector<utils::Vector2d> goals;
-	std::vector<double> goalProbs;
+	
+	bool publish_target;
 };
 
 
@@ -182,7 +182,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double goal_timeout_threshold;
 	
 	double freq;
-	bool publish_target;
+	
 	
 	zeroTwist.linear.x = 0;
 	zeroTwist.linear.y = 0;
@@ -303,19 +303,18 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishTrajectories();
 			publishScan();
 			
-			if (publish_target && FORCES.getData().targetFound) {
-				publishTarget();
-			}
+			
 			if (state == RUNNING) {
 				setLeds();
 			}
 		}
-		publishStatus();
-
+		
 		if(!r.sleep())
 			ROS_WARN("WSBS controller desired rate not met");
 	
-		ros::spinOnce();	
+		ros::spinOnce();
+		publishTarget();
+		publishStatus();	
 	}
 }
 
@@ -558,32 +557,31 @@ std_msgs::ColorRGBA Controller::getColor(double r, double g, double b, double a)
 
 void Controller::publishTarget()
 {
-	
 	animated_marker_msgs::AnimatedMarkerArray marker_array;
-	animated_marker_msgs::AnimatedMarker marker;
-       	marker.mesh_use_embedded_materials = true;
-	marker.lifetime = ros::Duration(1.0);	
-	marker.header.frame_id = odom_id;
-	marker.header.stamp = ros::Time::now();
-	marker.action = FORCES.getData().targetFound?0:2;
-	marker.id = 0;
-	marker.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
-	marker.mesh_resource = "package://teresa_wsbs/images/animated_walking_man.mesh";
-	marker.pose.position.x = targetMarkerPos.getX();
-	marker.pose.position.y = targetMarkerPos.getY();
-	marker.action = 0; 
-	marker.scale.x = PERSON_MESH_SCALE;
-	marker.scale.y = PERSON_MESH_SCALE;
-	marker.scale.z = PERSON_MESH_SCALE;
-	marker.color.a = 1.0;
-	marker.color.r = 0.255;
-	marker.color.g = 0.412;
-	marker.color.b = 0.882;
-	
-			
-	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
-  	marker.animation_speed = targetMarkerVel * 0.7;
-
+	if (publish_target && FORCES.getData().targetFound && (state == RUNNING || state == TARGET_LOST)) {
+		animated_marker_msgs::AnimatedMarker marker;
+       		marker.mesh_use_embedded_materials = true;
+		marker.lifetime = ros::Duration(1.0);	
+		marker.header.frame_id = odom_id;
+		marker.header.stamp = ros::Time::now();
+		marker.action = FORCES.getData().targetFound?0:2;
+		marker.id = 0;
+		marker.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
+		marker.mesh_resource = "package://teresa_wsbs/images/animated_walking_man.mesh";
+		marker.pose.position.x = targetMarkerPos.getX();
+		marker.pose.position.y = targetMarkerPos.getY();
+		marker.action = 0; 
+		marker.scale.x = PERSON_MESH_SCALE;
+		marker.scale.y = PERSON_MESH_SCALE;
+		marker.scale.z = PERSON_MESH_SCALE;
+		marker.color.a = 1.0;
+		marker.color.r = 0.255;
+		marker.color.g = 0.412;
+		marker.color.b = 0.882;
+		marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
+  		marker.animation_speed = targetMarkerVel * 0.7;
+		marker_array.markers.push_back(marker);	
+	}
 	// Put the robot
 	animated_marker_msgs::AnimatedMarker marker1;
        	marker1.mesh_use_embedded_materials = true;
@@ -609,9 +607,7 @@ void Controller::publishTarget()
 	
 
 	
-	marker_array.markers.push_back(marker);	
 	marker_array.markers.push_back(marker1);
-
 	
 	target_pub.publish(marker_array);
 }
