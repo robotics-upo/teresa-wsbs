@@ -95,6 +95,9 @@ private:
 	ros::Publisher predicted_trajectory_pub;
 	double likelihood_threshold;
 	std::map<utils::Vector2d, double> goals;
+
+	void addOtherAgent(double x, double y);
+	std::vector<sfm::Agent> otherAgents;
 	
 };
 
@@ -227,7 +230,7 @@ void Planner::publishPrediction(animated_marker_msgs::AnimatedMarkerArray& marke
 				const utils::Vector2d& goal, double probability, double dt)
 {
 	std::vector<sfm::Agent> agents;
-	agents.resize(2);
+	agents.resize(2 + otherAgents.size());
 	agents[0].position = simulator->robot_pos;
 	agents[0].velocity = simulator->robot_vel;
 	agents[0].desiredVelocity = 0.6;
@@ -241,6 +244,11 @@ void Planner::publishPrediction(animated_marker_msgs::AnimatedMarkerArray& marke
  	agents[1].groupId = 0;
 	sfm::Map *map = &sfm::MAP;
 	unsigned publish=0;
+
+	for(unsigned int i=0; i< otherAgents.size();i++)
+	{
+		agents[2+i] = otherAgents[i];
+	}
 
 	
 		for (unsigned iteration=0; iteration<200 && (agents[1].position - goal).norm() > 0.5; iteration++) {
@@ -637,9 +645,15 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		return;
 	}
 	target_hidden=true;
+	int index_target = -1;
+
+	simulator->otherAgents.clear();
+	this->otherAgents.clear();
+
 	if (!initiated || planner_ptr->getCurrentBelief().getParticles().size()==0) {
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
 			if (people->personPoses[i].id == targetId) {
+				
 				double x = people->personPoses[i].position.x;
 				double y = people->personPoses[i].position.y;
 				double yaw = tf::getYaw(people->personPoses[i].orientation);
@@ -649,6 +663,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 								people->personPoses[i].vel * std::sin(yaw));
 					target_hidden = false;
 					initiated=true;
+					index_target = i;
 					break;
 				}
 			}
@@ -661,6 +676,8 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		double target_yaw, target_id_yaw=0;
 		double target_vel, target_id_vel=0;
 		bool target_id_found=false;
+		int aux_index_id = -1;
+		int aux_index_like = -1;
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
 			double x = people->personPoses[i].position.x;
 			double y = people->personPoses[i].position.y;
@@ -672,6 +689,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 					target_id_yaw=yaw;
 					target_id_vel= people->personPoses[i].vel;
 					target_id_found=true;
+					aux_index_id = i;
 				}
 				double p = getTargetLikelihood(x,y);
 				std::cout<<"LIKELIHOOD "<<people->personPoses[i].id<<": "<<p<<std::endl;
@@ -682,6 +700,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 					target_yaw = yaw;
 					target_vel = people->personPoses[i].vel;
 					max = p;
+					aux_index_like = i;
 				}
 			}
 		}
@@ -691,15 +710,47 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 			simulator->target_pos.set(target_x,target_y);
 			simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
 			target_hidden = false;
+			index_target = aux_index_like;
 		} else if (target_id_found) {
 			simulator->target_pos.set(target_id_x,target_id_y);
 			simulator->target_vel.set(target_id_vel * std::cos(target_id_yaw), target_id_vel * std::sin(target_id_yaw));
 			target_hidden = false;
+			index_target = aux_index_id;
 		}	
 	}
+
+	for(int i=0; i< people->personPoses.size() && initiated; i++)
+	{
+
+		if(i!=index_target)
+		{
+			double x = people->personPoses[i].position.x;
+			double y = people->personPoses[i].position.y;
+			double yaw = tf::getYaw(people->personPoses[i].orientation);
+			if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+				simulator->addOtherAgent(x,y);
+				addOtherAgent(x,y);
+			}
+		}
+
+	}
+
+
 }
 
+void Planner::addOtherAgent(double x, double y)
+{
+	sfm::Agent a;
 
+	a.position = utils::Vector2d(x,y);
+	a.velocity = utils::Vector2d(0.0,0.0);
+	a.yaw.setRadian(0.0);
+	a.desiredVelocity = 0.0;
+	a.groupId = -1;
+
+	otherAgents.push_back(a);
+
+}
 
 
 }

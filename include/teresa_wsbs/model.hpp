@@ -129,6 +129,8 @@ public:
 	utils::Vector2d robot_vel;
 	utils::Vector2d target_pos;
 	utils::Vector2d target_vel;
+
+	std::vector<sfm::Agent> otherAgents;
 	
 
 	Simulator(GoalProvider& goalProvider, double discount, double robotGridCellSize, double targetGridCellSize, double trackingRange, double runningTime);
@@ -141,6 +143,8 @@ public:
 	virtual const ControllerMode& getAction(unsigned actionIndex) const {return actions[actionIndex];}
 	virtual bool allActionsAreValid(const State& state) const {return false;}
 	virtual bool isValidAction(const State& state, unsigned actionIndex) const;
+
+	void addOtherAgent(double x, double y);
 
 private:
 	void getObservation(const State& state, Observation& observation) const;
@@ -158,6 +162,8 @@ private:
 	double alphaFactor;
 	double betaFactor;
 	double gammaFactor; 
+
+	
 	
 
 };
@@ -222,7 +228,7 @@ inline
 bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward, double dt) const
 {
 	std::vector<sfm::Agent> agents;
-	agents.resize(2);
+	agents.resize(2 + otherAgents.size());
 	agents[0].position = state.robot_pos;
 	agents[0].velocity = state.robot_vel;
 	agents[0].desiredVelocity = state.target_vel.norm();	
@@ -247,6 +253,11 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents[1].goals.push_back(targetLocalGoal);
 	
 	agents[1].groupId = 0;
+
+	for(unsigned int i=0; i< otherAgents.size();i++)
+	{
+		agents[2+i] = otherAgents[i];
+	}
 
 	sfm::Map *map = &sfm::MAP;
 	sfm::SFM.computeForces(agents,map);
@@ -354,7 +365,19 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 }
 
   
+void Simulator::addOtherAgent(double x, double y)
+{
+	sfm::Agent a;
 
+	a.position = utils::Vector2d(x,y);
+	a.velocity = utils::Vector2d(0.0,0.0);
+	a.yaw.setRadian(0.0);
+	a.desiredVelocity = 0.0;
+	a.groupId = -1;
+
+	otherAgents.push_back(a);
+
+}
 
 
 }
