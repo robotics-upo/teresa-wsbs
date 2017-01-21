@@ -8,7 +8,10 @@
 	/odom 
 	/cmd_vel 
 	/scan360
-	/tracker_node/people_markers 
+	/tracker_node/people_markers
+	/people_tracker_node/tracked_persons/with_visual_confirmation 
+	/spencer/perception/tracked_persons
+	/people/wsbs
 	/people/navigation
 	/wsbs/markers/scan 
 	/wsbs/status 
