@@ -98,7 +98,7 @@ private:
 
 	void addOtherAgent(double x, double y);
 	std::vector<sfm::Agent> otherAgents;
-	
+	bool reset;
 };
 
 inline
@@ -109,7 +109,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
   initiated(false),
   target_hidden(true),
   targetId(0),
-  planner_ptr(NULL)
+  planner_ptr(NULL),
+  reset(true)
 {
 	double freq, discount;
 	std::string path_file;
@@ -154,28 +155,33 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
 	predicted_trajectory_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_trajectory", 1);
 	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
-	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout,threshold,exploration_constant);
+	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout*2.0/3.0,timeout*1.0/3.0,threshold,exploration_constant);
 	planner_ptr = &planner;
 	ros::Rate r(freq);
 	TF;
-	unsigned action;
+	unsigned action = HEURISTIC;
 	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
-	bool reset=true;
 	unsigned size,depth;
 	model::Observation obs;
 	while(n.ok()) {
 		if (running && initiated) {
-			action = planner.getAction();
+			action = reset ? HEURISTIC : planner.getAction(false);
 			likelyGoal = publishGoals(planner.getCurrentBelief());
 			publishPrediction();
 			utils::Vector2d target_pos,target_vel;
-			for (auto it = planner.getCurrentBelief().getParticles().begin(); it != planner.getCurrentBelief().getParticles().end(); ++it) {
-				target_pos += (it->target_pos);
-				target_vel += (it->target_vel);
+			if (planner.getCurrentBelief().size()>0) {
+				for (auto it = planner.getCurrentBelief().getParticles().begin(); 
+					it != planner.getCurrentBelief().getParticles().end(); ++it) {
+					target_pos += (it->target_pos);
+					target_vel += (it->target_vel);
+				}
+				target_pos /= planner.getCurrentBelief().size();
+				target_vel /= planner.getCurrentBelief().size();
+			} else {
+				target_pos = simulator->target_pos;
+				target_vel = simulator->target_vel;
 			}
-			target_pos /= planner.getCurrentBelief().size();
-			target_vel /= planner.getCurrentBelief().size();
 			planner.computeInfo(size,depth);
 			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
 			//publishTree(); 
@@ -194,17 +200,18 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			mode_srv.request.target_yaw =  target_vel.angle().toRadian();
 			mode_srv.request.target_vel = target_vel.norm();
 			controller_mode.call(mode_srv);	
-							
-			r.sleep();	
-			ros::spinOnce();
+			unsigned action0 = action;
+			planner.search();
+			r.sleep();							
 			getObservation(obs);
-			std::cout<<obs<<std::endl;			
-			reset = planner.moveTo(action,obs);
-			std::cout<<"RESET: "<<reset<<std::endl;
-			
+			std::cout<<obs<<std::endl;
+			reset = planner.moveTo(action0,obs);
+			std::cout<<"RESET: "<<reset<<std::endl;			
+			ros::spinOnce();					
 		} else {
 			r.sleep();	
 			ros::spinOnce();
+			
 		}
 		
 			
@@ -566,6 +573,7 @@ bool Planner::stop()
 	bool success= controller_stop.call(srv);
 	if (planner_ptr!=NULL) {
 		planner_ptr->reset();
+		reset=true;
 	}
 	running=false;
 	initiated=false;
@@ -581,6 +589,7 @@ bool Planner::stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response 
 	res = srv.response;
 	if (planner_ptr!=NULL) {
 		planner_ptr->reset();
+		reset=true;
 	}
 	return success;
 }
@@ -719,7 +728,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		}	
 	}
 
-	for(int i=0; i< people->personPoses.size() && initiated; i++)
+	for(int i=0; i< (int)people->personPoses.size() && initiated; i++)
 	{
 
 		if(i!=index_target)
