@@ -218,7 +218,7 @@ public:
 	Parameters& getParams() {return params;}
 	const Parameters& getParams() const {return params;}
 	void reset();
-	void compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
+	void compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal, PathProvider* pathProvider);
 	bool setRobot(const nav_msgs::Odometry::ConstPtr& odom); 
 	bool setLaser(const sensor_msgs::LaserScan::ConstPtr& laser);
 	bool setXtion(const sensor_msgs::LaserScan::ConstPtr& xtion);
@@ -235,8 +235,9 @@ private:
 	void computeObstacleForceSum(const sensor_msgs::LaserScan::ConstPtr& scan, utils::Vector2d& forceSum, unsigned& points, std::vector<Obstacle>& obstacles) const;
 	utils::Vector2d computeSocialForce(const utils::Vector2d& position, const utils::Vector2d& velocity) const;
 	void computeDesiredForce();
-	void selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
+	void selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal, PathProvider* pathProvider);
 	void selectGoal1(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal);
+	void selectHeuristicGoal();
 	void computeGroupForce();
 	bool transformPoint(double& x, double& y, const std::string& sourceFrameId, const std::string& targetFrameId) const;
 
@@ -502,7 +503,7 @@ void Agent::move(double dt)
 }
 
 inline
-void Forces::compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
+void Forces::compute(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal, PathProvider *pathProvider)
 {
 	if (laserPoints==0 && xtionPoints==0) {
 		data.obstacleForce.set(0,0);
@@ -513,7 +514,7 @@ void Forces::compute(ControllerMode controller_mode, const utils::Vector2d& cont
 		data.obstacles.insert(data.obstacles.end(), xtionObstacles.begin(), xtionObstacles.end());
 		std::sort(data.obstacles.begin(),data.obstacles.end(),compareNorm);
 	}
-	selectGoal(controller_mode, controller_mode_goal);
+	selectGoal(controller_mode, controller_mode_goal,pathProvider);
 	computeDesiredForce();
 	computeGroupForce();
 	data.globalForce = data.desiredForce + data.obstacleForce + data.socialForce + data.groupForce;
@@ -789,7 +790,51 @@ bool Forces::isTrajectoryObstructed(const utils::Vector2d& start, const utils::V
 }
 
 inline
-void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal)
+void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& controller_mode_goal, PathProvider *pathProvider)
+{
+	data.validGoal = false;
+	if (params.heuristicPlanner || controller_mode == HEURISTIC) {
+		selectHeuristicGoal();
+	}else if (controller_mode == SET_GOAL && pathProvider!=NULL) {
+		double x = data.robot.position.getX();
+		double y = data.robot.position.getY();
+		if (transformPoint(x,y, "odom", "map")) {
+			utils::Vector2d a,b;
+			a.set(x,y);
+			utils::Vector2d localGoal;	
+			pathProvider->getNextPoint(a,controller_mode_goal,b);
+			x = b.getX();
+			y = b.getY();
+			if (transformPoint(x,y, "map", "odom")) {
+				data.goal.set(x,y);			
+				data.validGoal = true;
+			}
+		}
+	} else if (data.targetFound && 
+			(data.robot.position - data.target.position).norm() <= FORCES.getParams().targetLookahead) {
+		if (controller_mode == LEFT) {
+			data.goal = data.leftGoal;
+			data.validGoal = true;
+		} else if (controller_mode == RIGHT) {
+			data.goal = data.rightGoal;
+			data.validGoal = true;
+		} else if (controller_mode == BEHIND) {
+			data.goal = data.behindGoal;
+			data.validGoal = true;
+		} else if (controller_mode == FOLLOW_PATH && data.pathFound) {
+			data.goal = data.followGoal;
+			data.validGoal = true;
+		}
+	} else if (controller_mode!=WAIT && data.pathFound) {
+		data.goal = data.followGoal;
+		data.validGoal = true;
+	}
+}
+
+
+
+inline
+void Forces::selectHeuristicGoal()
 {
 	data.validGoal = false;
 	if (data.targetFound && 
@@ -827,7 +872,6 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 			data.validGoal = true;
 			return;
 		}	
-		
 		if (left_obstructed && right_obstructed && !behind_obstructed) {
 			data.goal = data.behindGoal;
 			data.validGoal = true;
@@ -842,10 +886,7 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 			data.goal = data.leftGoal;
 			data.validGoal = true;
 			return;
-
 		}
-
-			
 	} else if (data.pathFound) {
 		data.goal = data.followGoal;
 		data.validGoal = true;

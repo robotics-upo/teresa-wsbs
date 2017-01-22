@@ -172,7 +172,6 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
    controller_mode(HEURISTIC),
    is_finishing(false)
 {
-
 	double odom_timeout_threshold;
 	double laser_timeout_threshold;
 	double xtion_timeout_threshold;
@@ -180,10 +179,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double finish_timeout_threshold;
 	double target_lost_timeout_threshold;
 	double goal_timeout_threshold;
-	
 	double freq;
-	
-	
+	std::string path_file;	
 	zeroTwist.linear.x = 0;
 	zeroTwist.linear.y = 0;
 	zeroTwist.linear.z = 0;
@@ -211,6 +208,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<int>("number_of_leds",number_of_leds,60);
 	pn.param<bool>("use_estimated_target",use_estimated_target,false);
 	pn.param<bool>("publish_target",publish_target,true);
+	pn.param<std::string>("path_file",path_file,"");
+	AStarPathProvider pathProvider(path_file);
 	
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_controller",FORCES.getParams().heuristicPlanner, true);
@@ -292,7 +291,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			if (people_timeout.getTimeElapsed()>=1.0) {
 				peopleReceived(ptr);
 			}
-			FORCES.compute(controller_mode, controller_mode_goal);
+			FORCES.compute(controller_mode, controller_mode_goal,&pathProvider);
 			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
 			//finishing = CMD_VEL.compute(dt);
 			cmd_vel_pub.publish(CMD_VEL.getCommand());
