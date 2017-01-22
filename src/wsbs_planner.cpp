@@ -73,6 +73,7 @@ private:
 	void statusReceived(const std_msgs::UInt8::ConstPtr& status);
 	void odomReceived(const nav_msgs::Odometry::ConstPtr& odom);
 	void peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
+	void otherPeopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
 	static double getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov);
 	double getTargetLikelihood(double x, double y);
 	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief);
@@ -116,11 +117,13 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	std::string path_file;
 	double lookahead,naive_goal_time,timeout,threshold,exploration_constant;
 	double tracking_range,running_time;
-	std::string odom_id, people_id;
+	std::string odom_id, people_id, other_people_id;
+	int numParticlesInitialBelief;
 
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
+	pn.param<std::string>("other_people_id",other_people_id,"/people/navigation");
 	pn.param<double>("freq",freq,1.0); //0.5 2.0
 	pn.param<double>("discount",discount,0.9); // 0.75
 	pn.param<double>("robot_cell_size",robot_cell_size,1.0);
@@ -134,6 +137,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("tracking_range",tracking_range,8);
 	pn.param<double>("running_time",running_time,1.0); // 2.0
 	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001);
+	pn.param<int>("num_particles",numParticlesInitialBelief,100);
 	
 	AStarPathProvider pathProvider(path_file);
 	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"map",pathProvider,false);
@@ -149,13 +153,14 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Planner::odomReceived,this);
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Planner::peopleReceived,this);
+	ros::Subscriber other_people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(other_people_id, 1, &Planner::otherPeopleReceived,this);
 	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);
 	belief_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/belief", 1);
 	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);	
 	predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
 	predicted_trajectory_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_trajectory", 1);
 	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
-	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout*2.0/3.0,timeout*1.0/3.0,threshold,exploration_constant);
+	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout*2.0/3.0,timeout*1.0/3.0,threshold,exploration_constant,numParticlesInitialBelief);
 	planner_ptr = &planner;
 	ros::Rate r(freq);
 	TF;
@@ -166,9 +171,31 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	model::Observation obs;
 	while(n.ok()) {
 		if (running && initiated) {
+
+			ros::spinOnce();
+			
+			getObservation(obs);
+			std::cout<<obs<<std::endl;
+
+			unsigned action0 = action;
+			
+			//Move in the planner to the next belief, given a and o. The first time it will generate an initial belief
+			reset = planner.moveTo(action0,obs);
+			std::cout<<"RESET: "<<reset<<std::endl;
+
+			//Get best action for the belief from the planner. The first time we get the default one
 			action = reset ? HEURISTIC : planner.getAction(false);
+
+			//If there planner returns no action, we perform the default one
+			if(action == simulator->getNumActions())
+				action = HEURISTIC;
+
+			//Publish visualization of the current belief
 			likelyGoal = publishGoals(planner.getCurrentBelief());
+
+			//Publish visualization of predicted trajectories
 			publishPrediction();
+
 			utils::Vector2d target_pos,target_vel;
 			if (planner.getCurrentBelief().size()>0) {
 				for (auto it = planner.getCurrentBelief().getParticles().begin(); 
@@ -182,10 +209,11 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 				target_pos = simulator->target_pos;
 				target_vel = simulator->target_vel;
 			}
-			planner.computeInfo(size,depth);
-			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
+
+			
 			//publishTree(); 
 
+			//Send command to the controller
 			mode_srv.request.controller_mode = action;
 			mode_srv.request.target_id = target_hidden ? -1 : targetId;
 			double x = likelyGoal.getX();
@@ -200,17 +228,21 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			mode_srv.request.target_yaw =  target_vel.angle().toRadian();
 			mode_srv.request.target_vel = target_vel.norm();
 			controller_mode.call(mode_srv);	
-			unsigned action0 = action;
+			
+			//Plan for the next action
 			planner.search();
+
+			planner.computeInfo(size,depth);
+			std::cout<<"DEPTH: "<<depth<<" SIZE: "<<size<<std::endl;
+			
 			r.sleep();							
-			getObservation(obs);
-			std::cout<<obs<<std::endl;
-			reset = planner.moveTo(action0,obs);
-			std::cout<<"RESET: "<<reset<<std::endl;			
-			ros::spinOnce();					
+							
+								
 		} else {
-			r.sleep();	
+
 			ros::spinOnce();
+			r.sleep();	
+			
 			
 		}
 		
@@ -654,10 +686,6 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		return;
 	}
 	target_hidden=true;
-	int index_target = -1;
-
-	simulator->otherAgents.clear();
-	this->otherAgents.clear();
 
 	if (!initiated || planner_ptr->getCurrentBelief().getParticles().size()==0) {
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
@@ -672,7 +700,6 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 								people->personPoses[i].vel * std::sin(yaw));
 					target_hidden = false;
 					initiated=true;
-					index_target = i;
 					break;
 				}
 			}
@@ -685,8 +712,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		double target_yaw, target_id_yaw=0;
 		double target_vel, target_id_vel=0;
 		bool target_id_found=false;
-		int aux_index_id = -1;
-		int aux_index_like = -1;
+		
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
 			double x = people->personPoses[i].position.x;
 			double y = people->personPoses[i].position.y;
@@ -698,7 +724,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 					target_id_yaw=yaw;
 					target_id_vel= people->personPoses[i].vel;
 					target_id_found=true;
-					aux_index_id = i;
+					
 				}
 				double p = getTargetLikelihood(x,y);
 				std::cout<<"LIKELIHOOD "<<people->personPoses[i].id<<": "<<p<<std::endl;
@@ -708,8 +734,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 					target_y = y;
 					target_yaw = yaw;
 					target_vel = people->personPoses[i].vel;
-					max = p;
-					aux_index_like = i;
+					max = p;			
 				}
 			}
 		}
@@ -719,19 +744,32 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 			simulator->target_pos.set(target_x,target_y);
 			simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
 			target_hidden = false;
-			index_target = aux_index_like;
+			
 		} else if (target_id_found) {
 			simulator->target_pos.set(target_id_x,target_id_y);
 			simulator->target_vel.set(target_id_vel * std::cos(target_id_yaw), target_id_vel * std::sin(target_id_yaw));
 			target_hidden = false;
-			index_target = aux_index_id;
+			
 		}	
 	}
+
+
+
+}
+
+void Planner::otherPeopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
+{
+	if (!running) {
+		return;
+	}
+
+	simulator->otherAgents.clear();
+	this->otherAgents.clear();
 
 	for(int i=0; i< (int)people->personPoses.size() && initiated; i++)
 	{
 
-		if(i!=index_target)
+		if(people->personPoses[i].id != targetId)
 		{
 			double x = people->personPoses[i].position.x;
 			double y = people->personPoses[i].position.y;
