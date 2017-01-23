@@ -1101,24 +1101,19 @@ bool Forces::setPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people, uns
 	}
 
 	//If there is not a point within the lookahead, look for the closest point
-	/*
+	
 	if(!data.pathFound)
 	{
 		double min_dist=99999.9;
-		auto aux_it = data.targetHistory.begin();
 		for (auto it = data.targetHistory.begin(); it!= data.targetHistory.end(); ++it) {
 			if ((data.robot.position - it->position).norm() <= min_dist) {
 				min_dist = (data.robot.position - it->position).norm();			
 				data.pathFound = true;
 				data.followGoal = it->position;
-				aux_it = it;
-				
 			}
 		}
-		if(data.pathFound)
-			data.targetHistory.erase(++aux_it,data.targetHistory.end());
 	}
-	*/
+	
 	if (!data.targetFound) {
 		targetVelocities.clear();
 	}
