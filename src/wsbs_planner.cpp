@@ -38,6 +38,8 @@
 namespace wsbs
 {
 
+#define DEFAULT_ACTION HEURISTIC
+
 #define ABORT_CODE 100
 
 const double PERSON_MESH_SCALE = (2.0 / 8.5 * 1.8)*0.9;
@@ -164,7 +166,8 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	planner_ptr = &planner;
 	ros::Rate r(freq);
 	TF;
-	unsigned action = HEURISTIC;
+	sfm::MAP;
+	unsigned action = DEFAULT_ACTION;
 	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
 	unsigned size,depth;
@@ -184,11 +187,11 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			std::cout<<"RESET: "<<reset<<std::endl;
 
 			//Get best action for the belief from the planner. The first time we get the default one
-			action = reset ? HEURISTIC : planner.getAction(false);
+			action = reset ? DEFAULT_ACTION : planner.getAction(false);
 
 			//If there planner returns no action, we perform the default one
 			if(action == simulator->getNumActions())
-				action = HEURISTIC;
+				action = DEFAULT_ACTION;
 
 			//Publish visualization of the current belief
 			likelyGoal = publishGoals(planner.getCurrentBelief());
