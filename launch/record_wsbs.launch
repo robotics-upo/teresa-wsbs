@@ -8,6 +8,9 @@
 	/odom 
 	/cmd_vel 
 	/scan360
+	/xtionPeople/rgb/image_raw/compressed
+	/xtionPeople/rgb/image_raw/compressed/parameter_descriptions
+	/xtionPeople/rgb/image_raw/compressed/parameter_updates
 	/tracker_node/people_markers
 	/people_tracker_node/tracked_persons/with_visual_confirmation 
 	/spencer/perception/tracked_persons
