@@ -98,7 +98,7 @@ private:
 	ros::Publisher predicted_trajectory_pub;
 	double likelihood_threshold;
 	std::map<utils::Vector2d, double> goals;
-
+	double target_likelihood_threshold;
 	void addOtherAgent(double x, double y);
 	std::vector<sfm::Agent> otherAgents;
 	bool reset;
@@ -139,6 +139,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("tracking_range",tracking_range,8);
 	pn.param<double>("running_time",running_time,1.0); // 2.0
 	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001);
+	pn.param<double>("target_likelihood_threshold",target_likelihood_threshold,0.5);
 	pn.param<int>("num_particles",numParticlesInitialBelief,100);
 	
 	AStarPathProvider pathProvider(path_file);
@@ -159,7 +160,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);
 	belief_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/belief", 1);
 	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);	
-	predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
+	//predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
 	predicted_trajectory_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_trajectory", 1);
 	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout*2.0/3.0,timeout*1.0/3.0,threshold,exploration_constant,numParticlesInitialBelief);
@@ -715,22 +716,22 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		double target_yaw, target_id_yaw=0;
 		double target_vel, target_id_vel=0;
 		bool target_id_found=false;
-		
+		double target_likelihood=0;
 		for (unsigned i=0; i< people->personPoses.size(); i++) {
 			double x = people->personPoses[i].position.x;
 			double y = people->personPoses[i].position.y;
 			double yaw = tf::getYaw(people->personPoses[i].orientation);
 			if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
+				double p = getTargetLikelihood(x,y);
+				std::cout<<"LIKELIHOOD "<<people->personPoses[i].id<<": "<<p<<std::endl;
 				if (people->personPoses[i].id == targetId) {
 					target_id_x=x;
 					target_id_y=y;
 					target_id_yaw=yaw;
 					target_id_vel= people->personPoses[i].vel;
 					target_id_found=true;
-					
+					target_likelihood=p;
 				}
-				double p = getTargetLikelihood(x,y);
-				std::cout<<"LIKELIHOOD "<<people->personPoses[i].id<<": "<<p<<std::endl;
 				if (p>max) {
 					target_id = people->personPoses[i].id;
 					target_x = x;
@@ -742,17 +743,32 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 			}
 		}
 		std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
+		if (target_id_found) {		
+			std::cout<<"TARGET LIKELIHOOD: "<<target_likelihood<<std::endl;
+		}
 		if (max>likelihood_threshold) {
-			targetId = target_id;
-			simulator->target_pos.set(target_x,target_y);
-			simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
-			target_hidden = false;
-			
+			if (target_id_found) {
+				if (fabs(target_likelihood-max)>target_likelihood_threshold) {
+					targetId = target_id;
+					simulator->target_pos.set(target_x,target_y);
+					simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
+					target_hidden = false;
+				} else {
+					simulator->target_pos.set(target_id_x,target_id_y);
+					simulator->target_vel.set(target_id_vel * std::cos(target_id_yaw), 
+									target_id_vel * std::sin(target_id_yaw));
+					target_hidden = false;
+				}				
+			} else {
+				targetId = target_id;
+				simulator->target_pos.set(target_x,target_y);
+				simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));
+				target_hidden = false;
+			}
 		} else if (target_id_found) {
 			simulator->target_pos.set(target_id_x,target_id_y);
 			simulator->target_vel.set(target_id_vel * std::cos(target_id_yaw), target_id_vel * std::sin(target_id_yaw));
 			target_hidden = false;
-			
 		}	
 	}
 
