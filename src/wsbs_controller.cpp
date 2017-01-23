@@ -137,6 +137,7 @@ private:
 	
 	ros::Publisher robot_markers_pub;
 	ros::Publisher target_pub;
+	ros::Publisher robot_pub;
 	ros::Publisher path_pub;
 	ros::Publisher goal_pub;
 	ros::Publisher trajectories_pub;
@@ -201,8 +202,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("laser_timeout",laser_timeout_threshold,0.5);
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
 	pn.param<double>("people_timeout",people_timeout_threshold,1200.0);
-	pn.param<double>("finish_timeout",finish_timeout_threshold,60);
-	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,60);
+	pn.param<double>("finish_timeout",finish_timeout_threshold,10);
+	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,30);
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
@@ -245,6 +246,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
 	robot_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/robot_forces", 1);
 	target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/target", 1);
+	robot_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/robot", 1);
 	forces_pub = pn.advertise<teresa_wsbs::Info>("/wsbs/controller/info", 1);
 	path_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/target_path", 1);
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
@@ -301,8 +303,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			publishGoal();
 			publishTrajectories();
 			publishScan();
-			
-			
+			publishTarget();			
 			if (state == RUNNING) {
 				setLeds();
 			}
@@ -312,7 +313,6 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			ROS_WARN("WSBS controller desired rate not met");
 	
 		ros::spinOnce();
-		publishTarget();
 		publishStatus();	
 	}
 }
@@ -556,8 +556,9 @@ std_msgs::ColorRGBA Controller::getColor(double r, double g, double b, double a)
 
 void Controller::publishTarget()
 {
-	animated_marker_msgs::AnimatedMarkerArray marker_array;
+	
 	if (publish_target && FORCES.getData().targetFound && (state == RUNNING || state == TARGET_LOST)) {
+		animated_marker_msgs::AnimatedMarkerArray marker_array;
 		animated_marker_msgs::AnimatedMarker marker;
        		marker.mesh_use_embedded_materials = true;
 		marker.lifetime = ros::Duration(1.0);	
@@ -580,8 +581,10 @@ void Controller::publishTarget()
 		marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
   		marker.animation_speed = targetMarkerVel * 0.7;
 		marker_array.markers.push_back(marker);	
+		target_pub.publish(marker_array);
 	}
 	// Put the robot
+	animated_marker_msgs::AnimatedMarkerArray marker_array1;
 	animated_marker_msgs::AnimatedMarker marker1;
        	marker1.mesh_use_embedded_materials = true;
 	marker1.lifetime = ros::Duration(1.0);	
@@ -606,9 +609,10 @@ void Controller::publishTarget()
 	
 
 	
-	marker_array.markers.push_back(marker1);
+	marker_array1.markers.push_back(marker1);
+	robot_pub.publish(marker_array1);
 	
-	target_pub.publish(marker_array);
+	
 }
 
 
