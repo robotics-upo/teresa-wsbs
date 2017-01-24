@@ -8,27 +8,33 @@
 	/odom 
 	/cmd_vel 
 	/scan360
+	/depthcamscan_node/scanXtion
+	/xtionNav/rgb/image_raw
+        /xtionNav/rgb/image_raw/compressed
+        /xtionNav/rgb/image_raw/compressed/parameter_descriptions
+        /xtionNav/rgb/image_raw/compressed/parameter_updates
+	/xtionPeople/rgb/image_raw	
 	/xtionPeople/rgb/image_raw/compressed
 	/xtionPeople/rgb/image_raw/compressed/parameter_descriptions
 	/xtionPeople/rgb/image_raw/compressed/parameter_updates
 	/tracker_node/people_markers
+	/people_tracker_node/tracked_persons
 	/people_tracker_node/tracked_persons/with_visual_confirmation 
-	/spencer/perception/tracked_persons
 	/people/wsbs
 	/people/navigation
-	/wsbs/markers/scan 
-	/wsbs/status 
 	/wsbs/controller/info
-	/wsbs/markers/robot_forces 
-	/wsbs/markers/trajectories 
-	/wsbs/markers/target_path 
-	/wsbs/markers/local_goal 
-	/wsbs/markers/target
-	/depthcamscan_node/scanXtion
 	/wsbs/markers/belief
-	/wsbs/planner/target
-	/wsbs/markers/predicted_target
 	/wsbs/markers/goals
+	/wsbs/markers/local_goal
+	/wsbs/markers/predicted_trajectory
+	/wsbs/markers/robot
+	/wsbs/markers/robot_forces
+	/wsbs/markers/scan
+	/wsbs/markers/target
+	/wsbs/markers/target_path
+	/wsbs/markers/trajectories
+	/wsbs/planner/target
+	/wsbs/status
 	-o /home/teresa/data/wsbs.bag" />
   
 </launch>
