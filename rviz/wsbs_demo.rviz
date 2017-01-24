@@ -317,22 +317,22 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 13.8095
+      Distance: 10.1687
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.10663
-        Y: -0.400405
-        Z: -0.575724
+        X: 1.28553
+        Y: 1.18833
+        Z: 1.01711
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.875398
+      Pitch: 0.884799
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 4.88358
+      Yaw: 4.84859
     Saved:
       - Class: rviz/FPS
         Enable Stereo Rendering:
@@ -383,6 +383,40 @@ Visualization Manager:
         Target Frame: base_link
         Value: Orbit (rviz)
         Yaw: -1.9266
+      - Class: rviz/Orbit
+        Distance: 18.2813
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.06
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Focal Point:
+          X: 0.253542
+          Y: 1.27458
+          Z: 1.868
+        Name: Orbit
+        Near Clip Distance: 0.01
+        Pitch: 0.2898
+        Target Frame: base_link
+        Value: Orbit (rviz)
+        Yaw: -0.769593
+      - Class: rviz/Orbit
+        Distance: 18.2813
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.06
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Focal Point:
+          X: 0.253542
+          Y: 1.27458
+          Z: 1.868
+        Name: Orbit
+        Near Clip Distance: 0.01
+        Pitch: 0.2898
+        Target Frame: base_link
+        Value: Orbit (rviz)
+        Yaw: -0.769593
 Window Geometry:
   Camera:
     collapsed: false
