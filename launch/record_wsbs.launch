@@ -9,10 +9,12 @@
 	/cmd_vel 
 	/scan360
 	/depthcamscan_node/scanXtion
+	/xtionNav/rgb/camera_info
 	/xtionNav/rgb/image_raw
         /xtionNav/rgb/image_raw/compressed
         /xtionNav/rgb/image_raw/compressed/parameter_descriptions
         /xtionNav/rgb/image_raw/compressed/parameter_updates
+	/xtionPeople/rgb/camera_info
 	/xtionPeople/rgb/image_raw	
 	/xtionPeople/rgb/image_raw/compressed
 	/xtionPeople/rgb/image_raw/compressed/parameter_descriptions
