@@ -230,6 +230,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 			mode_srv.request.target_pos_x = x;
 			mode_srv.request.target_pos_y = y;
 			mode_srv.request.target_yaw =  target_vel.angle().toRadian();
+			//TODO target_yaw should be in ODOM frame, not world frame
 			mode_srv.request.target_vel = target_vel.norm();
 			controller_mode.call(mode_srv);	
 			
