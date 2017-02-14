@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<!-- goals -->
+	<goal id="16" x="8.48254" y="15.2311" r="0.5"/>	
+	<goal id="14" x="10.639" y="15.5709" r="0.5"/>	
+	<goal id="23" x="13.5955" y="18.2575" r="0.5"/>	
+	<goal id="13" x="17.2059" y="21.928" r="0.5"/>
+	<goal id="9" x="18.7822" y="18.5859" r="0.5"/>	
+	<goal id="28" x="10.7647" y="5.879" r="0.5"/>
+	<goal id="30" x="8.29545" y="7.77915" r="0.5"/>
+	<goal id="27" x="12.2142" y="7.34257" r="0.5"/>
+
+	<!-- waypoints -->
+	<waypoint id="2" x="10.8445" y="12.493" r="0.5"/>
+	<waypoint id="3" x="11.6388" y="11.6632" r="0.5"/>
+	<waypoint id="4" x="12.9519" y="12.8426" r="0.5"/>
+	<waypoint id="5" x="13.951" y="13.9047" r="0.5"/>
+	<waypoint id="6" x="15.0057" y="14.9668" r="0.5"/>
+	<waypoint id="7" x="16.3057" y="15.9603" r="0.5"/>
+	<waypoint id="8" x="17.3479" y="17.4349" r="0.5"/>
+	<waypoint id="10" x="16.5487" y="18.6282" r="0.5"/>
+	<waypoint id="11" x="15.9378" y="19.8268" r="0.5"/>
+	<waypoint id="12" x="16.0309" y="21.0188" r="0.5"/>
+	<waypoint id="15" x="9.81042" y="13.948" r="0.5"/>
+	<waypoint id="17" x="11.4936" y="14.7289" r="0.5"/>
+	<waypoint id="18" x="9.67181" y="16.6515" r="0.5"/>
+	<waypoint id="19" x="11.2069" y="17.8526" r="0.5"/>
+	<waypoint id="20" x="12.5725" y="17.192" r="0.5"/>
+	<waypoint id="21" x="12.689" y="15.9687" r="0.5"/>
+	<waypoint id="22" x="11.4498" y="16.638" r="0.5"/>
+	<waypoint id="24" x="10.667" y="10.4467" r="0.5"/>
+	<waypoint id="25" x="9.73314" y="9.46693" r="0.5"/>
+	<waypoint id="26" x="11.1054" y="8.35688" r="0.5"/>
+	<waypoint id="29" x="9.27081" y="6.75115" r="0.5"/>
+	<waypoint id="31" x="9.67216" y="8.06679" r="0.5"/>
+	<waypoint id="32" x="10.9165" y="7.00753" r="0.5"/>
+	<waypoint id="33" x="9.69357" y="15.369" r="0.5"/>
+	<waypoint id="34" x="10.7919" y="13.9296" r="0.5"/>
+	<waypoint id="35" x="10.6623" y="16.6384" r="0.5"/>
+
+	<!-- edges -->
+	<edge from="16" to="18"/>
+	<edge from="16" to="15"/>
+	<edge from="15" to="33"/>
+	<edge from="33" to="18"/>
+	<edge from="18" to="19"/>
+	<edge from="18" to="14"/>
+	<edge from="33" to="14"/>
+	<edge from="33" to="16"/>
+	<edge from="15" to="14"/>
+	<edge from="17" to="14"/>
+	<edge from="15" to="34"/>
+	<edge from="34" to="17"/>
+	<edge from="34" to="14"/>
+	<edge from="33" to="34"/>
+	<edge from="2" to="34"/>
+	<edge from="2" to="15"/>
+	<edge from="17" to="21"/>
+	<edge from="17" to="22"/>
+	<edge from="14" to="22"/>
+	<edge from="22" to="19"/>
+	<edge from="18" to="35"/>
+	<edge from="35" to="14"/>
+	<edge from="35" to="22"/>
+	<edge from="35" to="19"/>
+	<edge from="22" to="20"/>
+	<edge from="19" to="20"/>
+	<edge from="21" to="20"/>
+	<edge from="22" to="21"/>
+	<edge from="23" to="20"/>
+	<edge from="21" to="19"/>
+	<edge from="14" to="21"/>
+	<edge from="19" to="23"/>
+	<edge from="21" to="23"/>
+	<edge from="2" to="3"/>
+	<edge from="3" to="4"/>
+	<edge from="4" to="5"/>
+	<edge from="5" to="6"/>
+	<edge from="6" to="7"/>
+	<edge from="7" to="8"/>
+	<edge from="8" to="9"/>
+	<edge from="8" to="10"/>
+	<edge from="10" to="11"/>
+	<edge from="11" to="12"/>
+	<edge from="12" to="13"/>
+	<edge from="3" to="24"/>
+	<edge from="24" to="25"/>
+	<edge from="24" to="26"/>
+	<edge from="25" to="26"/>
+	<edge from="25" to="30"/>
+	<edge from="25" to="31"/>
+	<edge from="30" to="31"/>
+	<edge from="29" to="30"/>
+	<edge from="29" to="31"/>
+	<edge from="31" to="26"/>
+	<edge from="26" to="27"/>
+	<edge from="32" to="31"/>
+	<edge from="32" to="26"/>
+	<edge from="26" to="29"/>
+	<edge from="28" to="29"/>
+	<edge from="28" to="31"/>
+	<edge from="28" to="32"/>
+	<edge from="32" to="27"/>
+	<edge from="27" to="28"/>
+	<edge from="32" to="29"/>
+	<edge from="31" to="27"/>
+	<edge from="24" to="31"/>
+</scenario>

@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scenario>
+	<!-- goals -->
+	<!-- waypoints -->
+	<waypoint id="1" x="38.8819" y="51.3249" r="0.5"/>
+	<waypoint id="3" x="37.0618" y="51.3873" r="0.5"/>
+	<waypoint id="4" x="34.3494" y="51.075" r="0.5"/>
+	<waypoint id="5" x="32.128" y="51.1465" r="0.5"/>
+	<waypoint id="6" x="29.4519" y="51.0573" r="0.5"/>
+	<waypoint id="7" x="27.8271" y="50.2988" r="0.5"/>
+	<waypoint id="8" x="25.366" y="50.2901" r="0.5"/>
+	<waypoint id="9" x="28.006" y="52.2884" r="0.5"/>
+	<waypoint id="10" x="25.5168" y="52.1278" r="0.5"/>
+	<waypoint id="11" x="23.1328" y="52.1814" r="0.5"/>
+	<waypoint id="12" x="29.2997" y="52.6721" r="0.5"/>
+	<waypoint id="13" x="28.808" y="51.6549" r="0.5"/>
+	<waypoint id="14" x="31.3695" y="52.7077" r="0.5"/>
+	<waypoint id="15" x="30.334" y="51.8691" r="0.5"/>
+	<waypoint id="16" x="32.9933" y="51.994" r="0.5"/>
+	<waypoint id="17" x="33.4629" y="53.2527" r="0.5"/>
+	<waypoint id="18" x="30.1614" y="54.8231" r="0.5"/>
+	<waypoint id="19" x="30.3837" y="53.5475" r="0.5"/>
+	<waypoint id="20" x="32.133" y="55.8506" r="0.5"/>
+	<waypoint id="21" x="32.3027" y="53.6903" r="0.5"/>
+	<waypoint id="22" x="33.9318" y="54.9751" r="0.5"/>
+	<waypoint id="25" x="34.0228" y="52.1093" r="0.5"/>
+	<waypoint id="26" x="35.5484" y="52.4788" r="0.5"/>
+	<waypoint id="27" x="35.7033" y="51.1915" r="0.5"/>
+	<waypoint id="28" x="35.0124" y="51.728" r="0.5"/>
+	<waypoint id="29" x="37.8485" y="52.2999" r="0.5"/>
+	<waypoint id="31" x="30.8157" y="50.4821" r="0.5"/>
+	<waypoint id="32" x="33.2527" y="50.5635" r="0.5"/>
+	<waypoint id="33" x="36.4333" y="50.6422" r="0.5"/>
+	<waypoint id="34" x="38.0453" y="50.7489" r="0.5"/>
+	<waypoint id="35" x="35.1558" y="50.4576" r="0.5"/>
+	<waypoint id="36" x="24.5216" y="46.966" r="0.5"/>
+	<waypoint id="37" x="24.5335" y="44.0525" r="0.5"/>
+	<waypoint id="38" x="24.643" y="41.1394" r="0.5"/>
+	<waypoint id="39" x="24.7882" y="38.5988" r="0.5"/>
+	<waypoint id="40" x="24.6612" y="35.9248" r="0.5"/>
+	<waypoint id="41" x="24.5939" y="32.9669" r="0.5"/>
+	<waypoint id="42" x="24.6269" y="29.7487" r="0.5"/>
+	<waypoint id="43" x="24.4989" y="26.5523" r="0.5"/>
+	<waypoint id="44" x="22.016" y="50.4555" r="0.5"/>
+	<waypoint id="45" x="19.1569" y="50.5216" r="0.5"/>
+	<waypoint id="46" x="15.7951" y="50.6556" r="0.5"/>
+	<waypoint id="47" x="12.658" y="50.6399" r="0.5"/>
+	<waypoint id="48" x="10.1717" y="50.5301" r="0.5"/>
+	<waypoint id="49" x="7.78414" y="50.4831" r="0.5"/>
+	<waypoint id="50" x="24.1652" y="49.3846" r="0.5"/>
+	<waypoint id="51" x="5.65666" y="50.5301" r="0.5"/>
+	<waypoint id="52" x="5.65717" y="52.0207" r="0.5"/>
+	<waypoint id="53" x="6.69022" y="53.0083" r="0.5"/>
+	<waypoint id="54" x="4.38256" y="53.2583" r="0.5"/>
+	<waypoint id="55" x="4.46005" y="50.7967" r="0.5"/>
+	<waypoint id="56" x="6.68681" y="51.3768" r="0.5"/>
+	<waypoint id="57" x="7.7486" y="49.2394" r="0.5"/>
+	<waypoint id="58" x="8.08281" y="47.8024" r="0.5"/>
+	<waypoint id="59" x="9.56947" y="47.687" r="0.5"/>
+	<waypoint id="60" x="11.1982" y="47.7026" r="0.5"/>
+	<waypoint id="61" x="12.82" y="47.6656" r="0.5"/>
+	<waypoint id="62" x="11.1923" y="46.1047" r="0.5"/>
+	<waypoint id="63" x="12.7511" y="45.3038" r="0.5"/>
+	<waypoint id="64" x="10.1637" y="45.0992" r="0.5"/>
+	<waypoint id="65" x="11.3204" y="44.6593" r="0.5"/>
+	<waypoint id="66" x="11.1725" y="43.0295" r="0.5"/>
+	<waypoint id="67" x="7.75175" y="45.8252" r="0.5"/>
+	<waypoint id="68" x="7.70792" y="43.904" r="0.5"/>
+	<waypoint id="69" x="7.62705" y="41.7693" r="0.5"/>
+	<waypoint id="70" x="9.96803" y="46.4964" r="0.5"/>
+	<waypoint id="71" x="12.177" y="46.6313" r="0.5"/>
+	<waypoint id="72" x="11.9036" y="45.5393" r="0.5"/>
+	<waypoint id="73" x="7.7128" y="40.0566" r="0.5"/>
+	<waypoint id="74" x="7.92856" y="38.0838" r="0.5"/>
+	<waypoint id="75" x="7.87758" y="36.0352" r="0.5"/>
+	<waypoint id="76" x="7.89975" y="33.9129" r="0.5"/>
+	<waypoint id="77" x="8.01416" y="31.4365" r="0.5"/>
+	<waypoint id="78" x="23.6345" y="45.6656" r="0.5"/>
+	<waypoint id="79" x="25.3745" y="45.7084" r="0.5"/>
+	<waypoint id="80" x="23.6059" y="42.5009" r="0.5"/>
+	<waypoint id="81" x="25.6311" y="42.6565" r="0.5"/>
+	<waypoint id="82" x="23.4776" y="36.8379" r="0.5"/>
+	<waypoint id="83" x="23.4786" y="34.4482" r="0.5"/>
+	<waypoint id="84" x="23.501" y="31.3733" r="0.5"/>
+	<waypoint id="85" x="25.3083" y="31.4856" r="0.5"/>
+	<waypoint id="86" x="25.3645" y="34.5381" r="0.5"/>
+	<waypoint id="87" x="25.5216" y="37.3226" r="0.5"/>
+	<waypoint id="88" x="26.8238" y="41.2287" r="0.5"/>
+	<waypoint id="90" x="26.722" y="47.9222" r="0.5"/>
+	<waypoint id="91" x="26.7158" y="39.5781" r="0.5"/>
+	<waypoint id="92" x="25.0029" y="40.0455" r="0.5"/>
+	<waypoint id="93" x="23.621" y="28.2355" r="0.5"/>
+	<waypoint id="94" x="26.7381" y="31.3283" r="0.5"/>
+	<waypoint id="95" x="26.7497" y="33.0455" r="0.5"/>
+	<waypoint id="96" x="25.5287" y="28.4047" r="0.5"/>
+	<waypoint id="97" x="25.5371" y="48.3979" r="0.5"/>
+	<!-- edges -->
+	<edge from="11" to="10"/>
+	<edge from="10" to="9"/>
+	<edge from="9" to="12"/>
+	<edge from="9" to="13"/>
+	<edge from="13" to="12"/>
+	<edge from="13" to="6"/>
+	<edge from="13" to="7"/>
+	<edge from="7" to="6"/>
+	<edge from="7" to="8"/>
+	<edge from="6" to="5"/>
+	<edge from="12" to="14"/>
+	<edge from="12" to="15"/>
+	<edge from="15" to="13"/>
+	<edge from="15" to="6"/>
+	<edge from="14" to="15"/>
+	<edge from="15" to="5"/>
+	<edge from="14" to="5"/>
+	<edge from="14" to="16"/>
+	<edge from="5" to="16"/>
+	<edge from="4" to="16"/>
+	<edge from="4" to="5"/>
+	<edge from="14" to="19"/>
+	<edge from="12" to="19"/>
+	<edge from="19" to="18"/>
+	<edge from="20" to="21"/>
+	<edge from="21" to="14"/>
+	<edge from="21" to="16"/>
+	<edge from="16" to="17"/>
+	<edge from="17" to="22"/>
+	<edge from="21" to="17"/>
+	<edge from="16" to="25"/>
+	<edge from="17" to="25"/>
+	<edge from="4" to="25"/>
+	<edge from="4" to="27"/>
+	<edge from="27" to="3"/>
+	<edge from="3" to="1"/>
+	<edge from="25" to="26"/>
+	<edge from="25" to="28"/>
+	<edge from="4" to="28"/>
+	<edge from="27" to="28"/>
+	<edge from="26" to="26"/>
+	<edge from="28" to="26"/>
+	<edge from="26" to="27"/>
+	<edge from="3" to="26"/>
+	<edge from="3" to="29"/>
+	<edge from="29" to="26"/>
+	<edge from="1" to="29"/>
+	<edge from="7" to="31"/>
+	<edge from="6" to="31"/>
+	<edge from="31" to="5"/>
+	<edge from="31" to="32"/>
+	<edge from="32" to="5"/>
+	<edge from="32" to="4"/>
+	<edge from="32" to="35"/>
+	<edge from="4" to="35"/>
+	<edge from="35" to="27"/>
+	<edge from="35" to="33"/>
+	<edge from="27" to="33"/>
+	<edge from="33" to="3"/>
+	<edge from="33" to="34"/>
+	<edge from="34" to="1"/>
+	<edge from="3" to="34"/>
+	<edge from="8" to="8"/>
+	<edge from="50" to="8"/>
+	<edge from="8" to="44"/>
+	<edge from="44" to="50"/>
+	<edge from="44" to="45"/>
+	<edge from="45" to="46"/>
+	<edge from="46" to="47"/>
+	<edge from="47" to="48"/>
+	<edge from="48" to="49"/>
+	<edge from="53" to="54"/>
+	<edge from="54" to="52"/>
+	<edge from="53" to="52"/>
+	<edge from="52" to="56"/>
+	<edge from="53" to="53"/>
+	<edge from="53" to="56"/>
+	<edge from="56" to="49"/>
+	<edge from="49" to="51"/>
+	<edge from="56" to="51"/>
+	<edge from="51" to="52"/>
+	<edge from="55" to="51"/>
+	<edge from="52" to="55"/>
+	<edge from="54" to="55"/>
+	<edge from="57" to="49"/>
+	<edge from="57" to="58"/>
+	<edge from="58" to="59"/>
+	<edge from="59" to="60"/>
+	<edge from="60" to="61"/>
+	<edge from="60" to="70"/>
+	<edge from="70" to="59"/>
+	<edge from="62" to="70"/>
+	<edge from="62" to="60"/>
+	<edge from="71" to="60"/>
+	<edge from="62" to="71"/>
+	<edge from="71" to="61"/>
+	<edge from="63" to="71"/>
+	<edge from="63" to="61"/>
+	<edge from="63" to="72"/>
+	<edge from="72" to="71"/>
+	<edge from="72" to="62"/>
+	<edge from="64" to="62"/>
+	<edge from="64" to="70"/>
+	<edge from="64" to="65"/>
+	<edge from="65" to="62"/>
+	<edge from="72" to="72"/>
+	<edge from="65" to="72"/>
+	<edge from="65" to="63"/>
+	<edge from="66" to="65"/>
+	<edge from="67" to="58"/>
+	<edge from="68" to="67"/>
+	<edge from="68" to="69"/>
+	<edge from="77" to="76"/>
+	<edge from="76" to="75"/>
+	<edge from="75" to="74"/>
+	<edge from="74" to="73"/>
+	<edge from="73" to="69"/>
+	<edge from="31" to="15"/>
+	<edge from="32" to="16"/>
+	<edge from="34" to="29"/>
+	<edge from="50" to="36"/>
+	<edge from="36" to="90"/>
+	<edge from="36" to="79"/>
+	<edge from="36" to="8"/>
+	<edge from="78" to="36"/>
+	<edge from="37" to="36"/>
+	<edge from="78" to="80"/>
+	<edge from="37" to="78"/>
+	<edge from="37" to="79"/>
+	<edge from="37" to="38"/>
+	<edge from="80" to="37"/>
+	<edge from="81" to="37"/>
+	<edge from="79" to="81"/>
+	<edge from="88" to="38"/>
+	<edge from="38" to="81"/>
+	<edge from="80" to="38"/>
+	<edge from="38" to="38"/>
+	<edge from="38" to="92"/>
+	<edge from="92" to="39"/>
+	<edge from="91" to="92"/>
+	<edge from="39" to="91"/>
+	<edge from="92" to="88"/>
+	<edge from="82" to="39"/>
+	<edge from="87" to="39"/>
+	<edge from="40" to="39"/>
+	<edge from="83" to="82"/>
+	<edge from="82" to="40"/>
+	<edge from="40" to="87"/>
+	<edge from="86" to="87"/>
+	<edge from="40" to="86"/>
+	<edge from="40" to="83"/>
+	<edge from="84" to="83"/>
+	<edge from="93" to="84"/>
+	<edge from="41" to="40"/>
+	<edge from="83" to="41"/>
+	<edge from="41" to="84"/>
+	<edge from="84" to="42"/>
+	<edge from="42" to="41"/>
+	<edge from="85" to="86"/>
+	<edge from="41" to="86"/>
+	<edge from="41" to="85"/>
+	<edge from="85" to="42"/>
+	<edge from="95" to="86"/>
+	<edge from="95" to="41"/>
+	<edge from="85" to="94"/>
+	<edge from="42" to="94"/>
+	<edge from="96" to="85"/>
+	<edge from="42" to="43"/>
+	<edge from="93" to="42"/>
+	<edge from="42" to="96"/>
+	<edge from="96" to="43"/>
+	<edge from="93" to="43"/>
+	<edge from="81" to="92"/>
+	<edge from="80" to="39"/>
+	<edge from="87" to="92"/>
+	<edge from="88" to="81"/>
+	<edge from="85" to="95"/>
+	<edge from="41" to="94"/>
+	<edge from="79" to="90"/>
+	<edge from="97" to="90"/>
+	<edge from="97" to="79"/>
+	<edge from="8" to="97"/>
+	<edge from="97" to="50"/>
+	<edge from="78" to="50"/>
+</scenario>
