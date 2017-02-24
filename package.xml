@@ -47,6 +47,7 @@
   <build_depend>geometry_msgs</build_depend>
   <build_depend>upo_msgs</build_depend>
   <build_depend>tinyxml</build_depend>
+  <build_depend>rosbag</build_depend>
   <build_depend>cmake_modules</build_depend>
   <build_depend>tf</build_depend>
   <run_depend>nav_msgs</run_depend>
@@ -57,6 +58,7 @@
   <run_depend>geometry_msgs</run_depend>
   <run_depend>upo_msgs</run_depend>
   <run_depend>tf</run_depend>
+  <run_depend>rosbag</run_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

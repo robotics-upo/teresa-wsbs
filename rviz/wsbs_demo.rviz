@@ -6,9 +6,14 @@ Panels:
       Expanded:
         - /Global Options1
         - /Grid1/Offset1
+        - /TrackedPersons1
+        - /AnimatedMarkerArray2
+        - /MarkerArray4
+        - /AnimatedMarkerArray3
+        - /MarkerArray5
         - /Camera2
       Splitter Ratio: 0.374849
-    Tree Height: 130
+    Tree Height: 78
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -27,7 +32,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: LaserScan
+    SyncSource: Camera
 Visualization Manager:
   Class: ""
   Displays:
@@ -105,7 +110,7 @@ Visualization Manager:
       Marker Topic: /wsbs/markers/robot_forces
       Name: MarkerArray
       Namespaces:
-        robot_forces: true
+        {}
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -145,7 +150,7 @@ Visualization Manager:
         Line width: 0.05
         Scaling factor: 1
         Value: Cylinders
-      Topic: /people_tracker_node/tracked_persons
+      Topic: /people_tracker_node/tracked_persons/with_visual_confirmation
       Value: true
       Z offset:
         Use Z position from message: false
@@ -184,23 +189,23 @@ Visualization Manager:
       Marker Topic: /wsbs/markers/local_goal
       Name: Marker
       Namespaces:
-        goal: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /wsbs/markers/trajectories
       Name: MarkerArray
       Namespaces:
-        trajectories: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /wsbs/markers/target_path
       Name: Marker
       Namespaces:
-        target_path: true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -208,7 +213,7 @@ Visualization Manager:
       Marker Topic: /wsbs/markers/goals
       Name: MarkerArray
       Namespaces:
-        goal_markers: true
+        {}
       Queue Size: 100
       Value: true
     - Class: animated_marker_rviz_plugin/AnimatedMarkerArray
@@ -216,7 +221,7 @@ Visualization Manager:
       Marker Topic: /wsbs/markers/predicted_trajectory
       Name: AnimatedMarkerArray
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: animated_marker_rviz_plugin/AnimatedMarkerArray
@@ -224,7 +229,7 @@ Visualization Manager:
       Marker Topic: /wsbs/markers/target
       Name: AnimatedMarkerArray
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -261,7 +266,7 @@ Visualization Manager:
       Marker Topic: /wsbs/markers/robot
       Name: AnimatedMarkerArray
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -317,22 +322,22 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 16.8199
+      Distance: 25.7782
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 40.0375
-        Y: 17.6513
-        Z: -0.357365
+        X: 22.5649
+        Y: 15.7278
+        Z: -0.148148
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 1.0548
+      Pitch: 1.5698
       Target Frame: map
       Value: Orbit (rviz)
-      Yaw: 4.86859
+      Yaw: 5.18358
     Saved:
       - Class: rviz/Orbit
         Distance: 29.1808
@@ -359,7 +364,7 @@ Window Geometry:
   Height: 744
   Hide Left Dock: false
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd0000000400000000000001da000002a2fc020000000afb0000001200530065006c0065006300740069006f006e00000000280000009b0000006400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001d600000195000003800000016bfb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073000000002800000111000000dd00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d0065007200610100000028000001410000001600fffffffb0000000c00430061006d006500720061010000016f0000015b0000001600ffffff000000010000011f000002a2fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730000000028000002a2000000b000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065000000000000000780000002f600fffffffb0000000800540069006d0065010000000000000450000000000000000000000335000002a200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001da000002a2fc020000000afb0000001200530065006c0065006300740069006f006e00000000280000009b0000006400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001d600000195000003800000016bfb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c0061007900730100000028000000dd000000dd00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d006500720061010000010b000000d40000001600fffffffb0000000c00430061006d00650072006101000001e5000000e50000001600ffffff000000010000011f000002a2fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a005600690065007700730000000028000002a2000000b000fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065000000000000000780000002f600fffffffb0000000800540069006d0065010000000000000450000000000000000000000335000002a200000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:

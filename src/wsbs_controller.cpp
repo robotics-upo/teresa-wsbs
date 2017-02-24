@@ -742,9 +742,9 @@ void Controller::publishForces()
 	forces.target_pose.y = FORCES.getData().target.position.getY();
 	forces.target_pose.theta = FORCES.getData().target.yaw.toRadian();
 
-	forces.target_pose.x = FORCES.getData().robot.position.getX();
-	forces.target_pose.y = FORCES.getData().robot.position.getY();
-	forces.target_pose.theta = FORCES.getData().robot.yaw.toRadian();
+	forces.robot_pose.x = FORCES.getData().robot.position.getX();
+	forces.robot_pose.y = FORCES.getData().robot.position.getY();
+	forces.robot_pose.theta = FORCES.getData().robot.yaw.toRadian();
 
 	forces.target_lin_vel = FORCES.getData().target.linearVelocity;
 	

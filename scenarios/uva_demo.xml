@@ -114,11 +114,12 @@
 	</agent>
 
 	<!-- people -->
-	<!--<agent x="35.8" y="29.7" n="2" dx="1" dy="1" type="1">
+	-<agent x="35.8" y="29.7" n="2" dx="1" dy="1" type="1">
 		<addwaypoint id="student_corridor"/>
 		<addwaypoint id="lab_corridor"/>
 	</agent>
 
+	<!--
 	<agent x="44.25" y="12.25" n="2" dx="1" dy="1" type="1">
 		<addwaypoint id="lab_corridor"/>
 		<addwaypoint id="student_corridor"/>
