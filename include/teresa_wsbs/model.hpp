@@ -14,6 +14,14 @@
 namespace wsbs
 {
 
+enum ModelType
+{
+	ONLY_HEURISTIC,
+	ONLY_GO_TO_GOAL,
+	HEURISTIC_AND_GO_TO_GOAL,
+	LEFT_RIGHT_BEHIND
+};
+
 namespace model
 {
 
@@ -133,13 +141,13 @@ public:
 	std::vector<sfm::Agent> otherAgents;
 	
 
-	Simulator(GoalProvider& goalProvider, double discount, double robotGridCellSize, double targetGridCellSize, double trackingRange, double runningTime);
+	Simulator(GoalProvider& goalProvider, double discount, double robotGridCellSize, double targetGridCellSize, double trackingRange, double runningTime, ModelType modelType);
 	~Simulator() {}
 	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward) const; 
 	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const;
 	virtual State& sampleInitialState(State& state) const;
 	virtual double getDiscount() const  {return discount;}
-	virtual unsigned getNumActions() const {return 7;}
+	virtual unsigned getNumActions() const {return 8;}
 	virtual const ControllerMode& getAction(unsigned actionIndex) const {return actions[actionIndex];}
 	virtual bool allActionsAreValid(const State& state) const {return false;}
 	virtual bool isValidAction(const State& state, unsigned actionIndex) const;
@@ -150,6 +158,8 @@ private:
 	void getObservation(const State& state, Observation& observation) const;
 	bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward,double dt) const;	
 	double getReward(const State& state,double force) const;
+	static bool intimateDistance(const utils::Vector2d& x, const utils::Vector2d& p, const utils::Angle& yaw, double factor);
+	static double getConfort(const State& state);
 
 	GoalProvider& goalProvider;
 	double discount;
@@ -157,25 +167,23 @@ private:
 	double targetGridCellSize;
 	double trackingRange;
 	double runningTime;
+	ModelType modelType;	
 	std::vector<ControllerMode> actions;
 	double goalRadius;
 	double alphaFactor;
 	double betaFactor;
 	double gammaFactor; 
-
-	
-	
-
 };
 
 inline
-Simulator::Simulator(GoalProvider& goalProvider, double discount, double robotGridCellSize, double targetGridCellSize, double trackingRange, double runningTime)
+Simulator::Simulator(GoalProvider& goalProvider, double discount, double robotGridCellSize, double targetGridCellSize, double trackingRange, double runningTime, ModelType modelType)
 : goalProvider(goalProvider),
   discount(discount),
   robotGridCellSize(robotGridCellSize),
   targetGridCellSize(targetGridCellSize),
   trackingRange(trackingRange),
   runningTime(runningTime),
+  modelType(modelType),
   goalRadius(0.25),
   alphaFactor(1.0), 
   betaFactor(-1.0),
@@ -189,6 +197,7 @@ Simulator::Simulator(GoalProvider& goalProvider, double discount, double robotGr
 	actions[4] = FOLLOW_PATH;
 	actions[5] = WAIT;
 	actions[6] = SET_GOAL;
+	actions[7] = SET_FINAL_GOAL;
 }
 
 inline
@@ -201,6 +210,7 @@ State& Simulator::sampleInitialState(State& state) const
 
 	if (lastBelief.empty()) {
 		state.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
+		
 	} else {
 		state.goal = lastBelief.sample().goal;
 	}
@@ -227,6 +237,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 inline
 bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward, double dt) const
 {
+	GoalProvider tmpGoalProvider(0.5,100,2.0,2.0,1.0,"map",goalProvider.getPathProvider(),false);
 	std::vector<sfm::Agent> agents;
 	agents.resize(2 + otherAgents.size());
 	agents[0].position = state.robot_pos;
@@ -241,7 +252,9 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	const ControllerMode& action = getAction(actionIndex);
 	sfm::Goal robotGoal;
 	robotGoal.radius = goalRadius;
-	robotGoal.center = goalProvider.getRobotLocalGoal(action);
+	tmpGoalProvider.update(state.robot_pos,state.target_pos,state.target_vel,state.goal);
+	robotGoal.center = tmpGoalProvider.getRobotLocalGoal(action);
+	
 	agents[0].goals.push_back(robotGoal);
 	
 	agents[0].groupId = 0;
@@ -254,6 +267,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	sfm::Goal targetLocalGoal;
 	targetLocalGoal.radius = goalRadius;
 	goalProvider.getPathProvider().getNextPoint(state.target_pos,state.goal,targetLocalGoal.center);
+	
 	agents[1].goals.push_back(targetLocalGoal);
 	
 	agents[1].groupId = 0;
@@ -274,9 +288,9 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.2),utils::RANDOM(0,0.2));
 	nextState.target_vel = agents[1].velocity;
 	
-	double p = (nextState.target_pos - state.goal).norm()<1.0 ? 0.01 : 0.1; 
-
-	// TODO: Cambiar goal con una probabilidad
+	double p = (nextState.target_pos - state.goal).norm()<0.5 ? 0.1 : 0.01; 
+	
+	
 	if (utils::RANDOM()<p /* 0.1 0.01*/) {
 		nextState.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
 	} else {
@@ -288,8 +302,9 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	//	nextState.goal = state.goal;
 	//}
 	
-	reward = getReward(nextState,agents[1].forces.groupForce.norm());	
-	
+	//reward = getReward(nextState,agents[1].forces.groupForce.norm());	
+	reward = getConfort(nextState);
+
 	return false;
 	//return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
 	
@@ -320,6 +335,60 @@ void Simulator::getObservation(const State& state, Observation& observation) con
 	}
 }
 
+// return true if x is in inside the intimate distance(*factor) of person p with yaw
+inline
+bool Simulator::intimateDistance(const utils::Vector2d& x, const utils::Vector2d& p, const utils::Angle& yaw, double factor)
+{
+	const double lambda = 0.4;
+	utils::Vector2d n = (p - x).normalized();
+	utils::Vector2d e(yaw.cos(),yaw.sin());
+	double cos_phi = -n.dot(e);
+	double w = lambda + (1-lambda)*(1+cos_phi)*0.5;
+	w *= factor;
+	double dis = (p-x).norm();
+	return dis < w;	
+}
+
+
+
+inline
+double Simulator::getConfort(const State& state) 
+{
+	utils::Vector2d x;
+	const double robot_area_radius = 0.5;
+	const double squared_robot_area_radius = 0.25;
+	const int confort_particles = 1;
+	double score=0;
+	for (int i = 0; i< confort_particles; i++) {
+		// Select a random particle in the robot area
+		do {
+			x.set(utils::RANDOM()*robot_area_radius, utils::RANDOM()*robot_area_radius);
+		} while (x[0]*x[0] + x[1]*x[1] > squared_robot_area_radius);
+		unsigned quadrant = utils::RANDOM(4);
+		if (quadrant==2 || quadrant==3) {
+			x.setX(-x[0]);
+		}
+		if (quadrant==1 || quadrant==2) {
+			x.setY(-x[1]); 
+		}
+		x+=state.robot_pos;
+		if (intimateDistance(x, state.target_pos, state.target_vel.angle(),1.0)) {
+			continue;
+		}
+				
+		if (intimateDistance(x, state.target_pos, state.target_vel.angle(),2.0)) {
+			score += 1.0;	
+		} else if ((x - state.target_pos).norm() < 2.0) {
+			score += 0.5;
+		} 
+	}
+	score /= (double)confort_particles;
+	return score;
+
+}
+
+
+
 
 
 inline
@@ -341,12 +410,21 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 }
 
 
-
 inline
 bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 {
 	const ControllerMode& action = getAction(actionIndex);
-	return action==HEURISTIC;	
+	switch(modelType) {
+		case ONLY_HEURISTIC:
+			return action==HEURISTIC;
+		case ONLY_GO_TO_GOAL:
+			return action==SET_FINAL_GOAL;
+		case HEURISTIC_AND_GO_TO_GOAL:
+			return  action==HEURISTIC || action == SET_FINAL_GOAL;
+		default:
+			return action==LEFT || action==RIGHT || action==BEHIND;
+	}
+	//return action==HEURISTIC;	
 	//return action==HEURISTIC || action == SET_GOAL;
 	//return action!=FOLLOW_PATH && action!=WAIT;	
 	/*

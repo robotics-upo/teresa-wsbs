@@ -2,14 +2,16 @@
 <scenario>
 	<!-- waypoints -->
 	<goal id="1" x="38.8819" y="51.3249" r="0.5"/>	<!-- rest area -->
-	<goal id="4" x="34.3494" y="51.075" r="0.5"/>	<!-- cofee machine -->
-	<goal id="6" x="29.4519" y="51.0573" r="0.5"/>	<!-- water font -->
-	<goal id="11" x="23.1328" y="52.1814" r="0.5"/> <!-- exit 1 -->
-	<goal id="7" x="27.8271" y="50.2988" r="0.5"/> <!-- enter coffe machine area --> 	
+	
 	<goal id="38" x="24.643" y="41.1394" r="0.5"/> <!-- large corridor -->	
-	<goal id="43" x="24.4989" y="26.5523" r="0.5"/> <!-- exit 2 -->	
+	<goal id="26" x="35.5484" y="52.4788" r="0.5"/> <!-- cofee machine -->
+	<goal id="12" x="29.2997" y="52.6721" r="0.5"/> <!-- water font -->
 
 	<!-- waypoints -->
+	<waypoint id="7" x="27.8271" y="50.2988" r="0.5"/> <!-- enter coffe machine area --> 	
+	<waypoint id="4" x="34.3494" y="51.075" r="0.5"/>
+	<waypoint id="43" x="24.4989" y="26.5523" r="0.5"/> <!-- exit 2 -->	
+	<waypoint id="11" x="23.1328" y="52.1814" r="0.5"/> <!-- exit 1 -->	
 	<waypoint id="51" x="5.65666" y="50.5301" r="0.5"/> <!-- hall -->
 	<waypoint id="71" x="12.177" y="46.6313" r="0.5"/> <!-- home -->
 	<waypoint id="66" x="11.1725" y="43.0295" r="0.5"/> <!-- office -->
@@ -19,7 +21,7 @@
 	<waypoint id="8" x="25.366" y="50.2901" r="0.5"/>
 	<waypoint id="9" x="28.006" y="52.2884" r="0.5"/>
 	<waypoint id="10" x="25.5168" y="52.1278" r="0.5"/>
-	<waypoint id="12" x="29.2997" y="52.6721" r="0.5"/>
+	<waypoint id="6" x="29.4519" y="51.0573" r="0.5"/>	
 	<waypoint id="13" x="28.808" y="51.6549" r="0.5"/>
 	<waypoint id="14" x="31.3695" y="52.7077" r="0.5"/>
 	<waypoint id="15" x="30.334" y="51.8691" r="0.5"/>
@@ -31,7 +33,7 @@
 	<waypoint id="21" x="32.3027" y="53.6903" r="0.5"/>
 	<waypoint id="22" x="33.9318" y="54.9751" r="0.5"/>
 	<waypoint id="25" x="34.0228" y="52.1093" r="0.5"/>
-	<waypoint id="26" x="35.5484" y="52.4788" r="0.5"/>
+	
 	<waypoint id="27" x="35.7033" y="51.1915" r="0.5"/>
 	<waypoint id="28" x="35.0124" y="51.728" r="0.5"/>
 	<waypoint id="29" x="37.8485" y="52.2999" r="0.5"/>
@@ -280,4 +282,21 @@
 	<edge from="8" to="97"/>
 	<edge from="97" to="50"/>
 	<edge from="78" to="50"/>
+
+
+	<agent x="37.68" y="52.28" n="1" dx="1" dy="1" type="2">
+						
+	</agent>
+	<!--
+	<agent x="24.39" y="26.63" n="2" dx="1" dy="1" type="1">
+		<addwaypoint id="38"/>
+		<addwaypoint id="43"/>
+	</agent>
+	
+	<agent x="32" y="51" n="1" dx="1" dy="1" type="1">
+	</agent>
+	
+	<agent x="33" y="51" n="1" dx="1" dy="1" type="1">
+	</agent>
+	-->
 </scenario>

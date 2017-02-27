@@ -38,7 +38,9 @@
 namespace wsbs
 {
 
-#define DEFAULT_ACTION HEURISTIC
+
+
+
 
 #define ABORT_CODE 100
 
@@ -88,6 +90,7 @@ private:
 	ros::Publisher target_pose_pub;
 	model::Simulator *simulator;
 	GoalProvider *goalProvider_ptr;
+	AStarPathProvider *aStar_ptr;
 	bool running;
 	bool initiated;
 	bool target_hidden;
@@ -121,12 +124,13 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double tracking_range,running_time;
 	std::string odom_id, people_id, other_people_id;
 	int numParticlesInitialBelief;
-
+	
+	int planner_mode;
 
 	pn.param<std::string>("odom_id",odom_id,"/odom");
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
 	pn.param<std::string>("other_people_id",other_people_id,"/people/navigation");
-	pn.param<double>("freq",freq,1.0); //0.5 2.0
+	pn.param<double>("freq",freq,1.0); //1.0 0.5 2.0
 	pn.param<double>("discount",discount,0.9); // 0.75
 	pn.param<double>("robot_cell_size",robot_cell_size,1.0);
 	pn.param<double>("target_cell_size",target_cell_size,1.0);
@@ -137,12 +141,17 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("threshold",threshold,0.6); // 0.01
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,8);
-	pn.param<double>("running_time",running_time,1.0); // 2.0
+	pn.param<double>("running_time",running_time,1.0); // 1.0 2.0
 	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001);
 	pn.param<double>("target_likelihood_threshold",target_likelihood_threshold,0.5);
 	pn.param<int>("num_particles",numParticlesInitialBelief,100);
 	
+	pn.param<int>("planner_mode",planner_mode,0); 
+	ModelType modelType = (ModelType)planner_mode;
+
 	AStarPathProvider pathProvider(path_file);
+	aStar_ptr = &pathProvider;
+	
 	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"map",pathProvider,false);
 	goalProvider_ptr = &goalProvider;
 	ros::ServiceServer start_srv = n.advertiseService("/wsbs/start", &Planner::start,this);
@@ -156,18 +165,26 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Planner::odomReceived,this);
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Planner::peopleReceived,this);
-	ros::Subscriber other_people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(other_people_id, 1, &Planner::otherPeopleReceived,this);
+	//ros::Subscriber other_people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(other_people_id, 1, &Planner::otherPeopleReceived,this);
 	goal_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/goals", 1);
 	belief_markers_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/belief", 1);
 	target_pose_pub = pn.advertise<upo_msgs::PersonPoseUPO>("/wsbs/planner/target",1);	
 	//predicted_target_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_target", 1);
 	predicted_trajectory_pub = pn.advertise<animated_marker_msgs::AnimatedMarkerArray>("/wsbs/markers/predicted_trajectory", 1);
-	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time);
+	simulator = new model::Simulator(goalProvider,discount,robot_cell_size,target_cell_size,tracking_range,running_time,modelType);
 	pomcp::PomcpPlanner<model::State,model::Observation,ControllerMode> planner(*simulator,timeout*2.0/3.0,timeout*1.0/3.0,threshold,exploration_constant,numParticlesInitialBelief);
 	planner_ptr = &planner;
 	ros::Rate r(freq);
 	TF;
 	sfm::MAP;
+	unsigned DEFAULT_ACTION;
+	if (planner_mode == 0 || planner_mode==2) {
+		DEFAULT_ACTION = HEURISTIC;
+	} else if (planner_mode == 1) {
+		DEFAULT_ACTION = SET_FINAL_GOAL;
+	} else {
+		DEFAULT_ACTION=RIGHT;
+	}
 	unsigned action = DEFAULT_ACTION;
 	utils::Vector2d likelyGoal;
 	teresa_wsbs::select_mode mode_srv;
@@ -298,13 +315,13 @@ void Planner::publishPrediction(animated_marker_msgs::AnimatedMarkerArray& marke
 		for (unsigned iteration=0; iteration<200 && (agents[1].position - goal).norm() > 0.5; iteration++) {
 		sfm::Goal robotLocalGoal;
 		robotLocalGoal.radius = 0.5;
-		goalProvider_ptr->getPathProvider().getNextPoint(agents[0].position,goal,robotLocalGoal.center);
+		aStar_ptr->getNextPoint(agents[0].position,goal,robotLocalGoal.center);
 		agents[0].goals.clear();		
 		agents[0].goals.push_back(robotLocalGoal);
 
 		sfm::Goal targetLocalGoal;
 		targetLocalGoal.radius = 0.5;
-		goalProvider_ptr->getPathProvider().getNextPoint(agents[1].position,goal,targetLocalGoal.center);
+		aStar_ptr->getNextPoint(agents[1].position,goal,targetLocalGoal.center);
 		agents[1].goals.clear();		
 		agents[1].goals.push_back(targetLocalGoal);
 

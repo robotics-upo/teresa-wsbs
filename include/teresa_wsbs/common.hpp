@@ -103,16 +103,11 @@ public:
 	PathProvider() {}
 	virtual ~PathProvider() {}
 	const std::vector<utils::Vector2d>& getGoals() const {return goals;}
-	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
-	{
-		nextPoint = goal;
-		return nextPoint;
-	}
-
+	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint) = 0;
+	
 protected:
 	std::vector<utils::Vector2d> goals;	
 };
-
 
 
 class AStarPathProvider : public PathProvider
@@ -130,6 +125,7 @@ public:
 	virtual ~AStarPathProvider() {}
 	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
 	{
+		
 		std::string start_id,goal_id;
 		aStar.getClosestNode(position.getX(),position.getY(),start_id);
 		aStar.getClosestNode(goal.getX(),goal.getY(),goal_id);
@@ -148,6 +144,7 @@ public:
 	}
 private:
 	utils::AStar aStar;
+	
 };
 
 

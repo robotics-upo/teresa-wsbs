@@ -181,6 +181,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double target_lost_timeout_threshold;
 	double goal_timeout_threshold;
 	double freq;
+	
 	std::string path_file;	
 	zeroTwist.linear.x = 0;
 	zeroTwist.linear.y = 0;
@@ -210,12 +211,13 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<bool>("use_estimated_target",use_estimated_target,false);
 	pn.param<bool>("publish_target",publish_target,true);
 	pn.param<std::string>("path_file",path_file,"");
+	
 	AStarPathProvider pathProvider(path_file);
 	
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_controller",FORCES.getParams().heuristicPlanner, true);
-	pn.param<bool>("clicked_goals",clicked_goals,false);
-
+	pn.param<bool>("clicked_goals",clicked_goals,false); // Controller no heuristic, no data association, going to goal clicked in Rviz
+	
 	if (clicked_goals) {
 		controller_mode = SET_FINAL_GOAL;
 	}
