@@ -152,7 +152,7 @@ public:
 		  personRadius(0.35),
 		  robotMaxLinearVelocity(0.6), //0.5 0.6 0.5 0.3
 		  robotMaxAngularVelocity(0.8), // 0.8 1.5
-		  robotMaxLinearAcceleration(0.5), // 1.0 
+		  robotMaxLinearAcceleration(1.0), // 0.5 
 		  robotMaxAngularAcceleration(2.0), // 1.0 
 		  lambda(2.0),
 		  gamma(0.35),
@@ -795,7 +795,14 @@ void Forces::selectGoal(ControllerMode controller_mode, const utils::Vector2d& c
 	data.validGoal = false;
 	if (params.heuristicPlanner || controller_mode == HEURISTIC) {
 		selectHeuristicGoal();
-	}else if (controller_mode == SET_GOAL && pathProvider!=NULL) {
+	}else if (controller_mode == SET_FINAL_GOAL) {
+		double x = controller_mode_goal.getX();
+		double y = controller_mode_goal.getY();		
+		if (transformPoint(x,y, "map", "odom")) {
+			data.goal.set(x,y);			
+			data.validGoal = true;
+		}
+	} else if (controller_mode == SET_GOAL && pathProvider!=NULL) {
 		double x = data.robot.position.getX();
 		double y = data.robot.position.getY();
 		if (transformPoint(x,y, "odom", "map")) {

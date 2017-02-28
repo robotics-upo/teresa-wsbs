@@ -37,6 +37,7 @@
 	/wsbs/markers/trajectories
 	/wsbs/planner/target
 	/wsbs/status
+	/clicked_point
 	-o /home/teresa/data/wsbs.bag" />
   
 </launch>

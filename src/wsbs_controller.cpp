@@ -79,7 +79,7 @@ public:
 	Controller(ros::NodeHandle& n, ros::NodeHandle& pn);
 	~Controller() {}
 private:
-
+	void pointReceived(const geometry_msgs::PointStamped::ConstPtr& point); 
 	bool start(teresa_wsbs::start::Request &req, teresa_wsbs::start::Response &res);
 	bool stop(teresa_wsbs::stop::Request &req, teresa_wsbs::stop::Response &res);
 	bool selectTargetId(teresa_wsbs::select_target_id::Request &req, teresa_wsbs::select_target_id::Response &res);
@@ -162,7 +162,7 @@ private:
 	double targetMarkerVel;
 	double targetMarkerYaw;
 	bool use_estimated_target;
-	
+	bool clicked_goals;
 	
 	bool publish_target;
 };
@@ -214,21 +214,27 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	
 	pn.param<double>("freq",freq,15);
 	pn.param<bool>("heuristic_controller",FORCES.getParams().heuristicPlanner, true);
+	pn.param<bool>("clicked_goals",clicked_goals,false);
 
+	if (clicked_goals) {
+		controller_mode = SET_FINAL_GOAL;
+	}
+	ros::ServiceServer select_mode_srv;
 	std::string start_service_name, stop_service_name;
-	if (FORCES.getParams().heuristicPlanner) {
+	if (FORCES.getParams().heuristicPlanner || clicked_goals) {
 		start_service_name = "/wsbs/start";
 		stop_service_name = "/wsbs/stop";
 	} else {
 		start_service_name = "/wsbs/controller/start";
 		stop_service_name = "/wsbs/controller/stop";
+		select_mode_srv = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
 	}
 
 	ros::ServiceServer start_srv = n.advertiseService(start_service_name, &Controller::start,this);
 	ros::ServiceServer stop_srv  = n.advertiseService(stop_service_name, &Controller::stop,this);
 	ros::ServiceServer select_id_srv  = n.advertiseService("/wsbs/select_target_id", &Controller::selectTargetId,this);	
-	ros::ServiceServer select_mode_srv  = n.advertiseService("/wsbs/select_mode", &Controller::selectMode,this);	
-
+	
+	ros::Subscriber point_sub = n.subscribe<geometry_msgs::PointStamped>("/clicked_point",1,&Controller::pointReceived,this);
 	ros::Subscriber people_sub = n.subscribe<upo_msgs::PersonPoseArrayUPO>(people_id, 1, &Controller::peopleReceived,this);
 	
 	ros::Subscriber odom_sub = n.subscribe<nav_msgs::Odometry>(odom_id, 1, &Controller::odomReceived,this);
@@ -368,6 +374,13 @@ void Controller::setLeds()
 }
 
 
+void Controller::pointReceived(const geometry_msgs::PointStamped::ConstPtr& point)
+{
+	if (clicked_goals) {
+		ROS_INFO("CLICKED GOAL received");
+		controller_mode_goal.set(point->point.x, point->point.y);
+	}
+}
 
 
 void Controller::checkEndingCondition(bool finishing)

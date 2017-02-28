@@ -90,7 +90,8 @@ enum ControllerMode {
 	BEHIND		= 3,
 	FOLLOW_PATH	= 4,
 	WAIT		= 5,
-	SET_GOAL	= 6
+	SET_GOAL	= 6,
+	SET_FINAL_GOAL  = 7
 };
 
 
@@ -312,6 +313,9 @@ const utils::Vector2d& GoalProvider::getRobotLocalGoal(const ControllerMode& mod
 
 		case SET_GOAL:
 			return robotLocalGoal;
+
+		case SET_FINAL_GOAL:
+			return targetGlobalGoal;	
 	}
 	return waitGoal;
 }
