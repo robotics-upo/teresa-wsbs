@@ -174,15 +174,19 @@ int main(int argc, char** argv)
 	std::string out_file;
 	bool trajectory_running=false;
 	unsigned trajectory_counter=0;
+	bool use_clicked_points=false;
 	
 	double initial_time;
 	pn.param<std::string>("bag_name",bag_name,"/home/ignacio/baseline.bag"); // Bag name
 	pn.param<std::string>("people_topic",people_topic,"/people/navigation");
 	pn.param<std::string>("out_file",out_file,"/home/ignacio/results.txt");
 	pn.param<double>("robot_area_radius",robot_area_radius,0.5); 
-	pn.param<int>("confort_particles",confort_particles,1000);	
+	pn.param<int>("confort_particles",confort_particles,1000);
+	pn.param<bool>("use_clicked_points",use_clicked_points,false);	
 	pn.param<double>("lambda",lambda,0.4);
-
+	if (argc!=1) {
+		bag_name = argv[1];
+	}
 	std::vector<std::string> topics;
 	topics.push_back(people_topic);
 	topics.push_back("/odom");
@@ -198,8 +202,9 @@ int main(int argc, char** argv)
 	ROS_INFO("Processing bag %s...",bag_name.c_str());	
 
 	rosbag::View view(bag, rosbag::TopicQuery(topics));
-	
+	ros::Time time;
 	foreach(rosbag::MessageInstance const m, view) {
+		time = m.getTime();
 		//ROS_INFO("Reading %s at time %f s. ",m.getTopic().c_str(),m.getTime().toSec());
 		if (m.getTopic().compare(people_topic)==0) {
 			upo_msgs::PersonPoseArrayUPO::ConstPtr people_ptr = m.instantiate<upo_msgs::PersonPoseArrayUPO>();
@@ -214,7 +219,7 @@ int main(int argc, char** argv)
 			animated_marker_msgs::AnimatedMarkerArray::ConstPtr marker_array_ptr =
 						m.instantiate<animated_marker_msgs::AnimatedMarkerArray>();
 			readTarget(marker_array_ptr);
-		} else if (m.getTopic().compare("/clicked_point")==0) {
+		} else if ((use_clicked_points && m.getTopic().compare("/clicked_point")==0) || (!use_clicked_points && !trajectory_running)) {
 			trajectory_running = !trajectory_running;
 			if (trajectory_running) {
 				trajectory_counter++;
@@ -231,6 +236,14 @@ int main(int argc, char** argv)
 			
 		}
 
+	}
+	if (!use_clicked_points) {
+		ROS_INFO("Trajectory N. %d finishes at time %f s",trajectory_counter,time.toSec());
+		bool valid =calculateMetrics(trajectory_counter, time.toSec()-initial_time);
+		if (!valid) {
+			ROS_INFO("Invalid trajectory");
+			trajectory_counter--;
+		}
 	}
 	out_stream.close();
 	return 0;
