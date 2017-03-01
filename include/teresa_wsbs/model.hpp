@@ -262,7 +262,7 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents[1].position = state.target_pos;
 	agents[1].velocity = state.target_vel;
 	agents[1].yaw = state.target_vel.angle();
-	agents[1].desiredVelocity = 1.2;
+	agents[1].desiredVelocity = 0.9; //1.2;
  	
 	sfm::Goal targetLocalGoal;
 	targetLocalGoal.radius = goalRadius;
@@ -420,7 +420,7 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 		case ONLY_GO_TO_GOAL:
 			return action==SET_FINAL_GOAL;
 		case HEURISTIC_AND_GO_TO_GOAL:
-			return  action==HEURISTIC || action == SET_FINAL_GOAL;
+			return  action==HEURISTIC || action == SET_GOAL;
 		default:
 			return action==LEFT || action==RIGHT || action==BEHIND;
 	}

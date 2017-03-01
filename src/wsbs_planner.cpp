@@ -24,6 +24,7 @@
 #include <ros/ros.h>
 #include <teresa_wsbs/model.hpp>
 #include <lightpomcp/Pomcp.hpp>
+#include <lightpomcp/Timer.hpp>
 #include <lightsfm/cmd_vel.hpp>
 #include <teresa_wsbs/start.h>
 #include <teresa_wsbs/stop.h>
@@ -105,6 +106,8 @@ private:
 	void addOtherAgent(double x, double y);
 	std::vector<sfm::Agent> otherAgents;
 	bool reset;
+	double target_lost_timeout;
+	utils::Timer target_timer;
 };
 
 inline
@@ -142,10 +145,10 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("exploration_constant",exploration_constant,1);
 	pn.param<double>("tracking_range",tracking_range,8);
 	pn.param<double>("running_time",running_time,1.0); // 1.0 2.0
-	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001);
+	pn.param<double>("likelihood_threshold",likelihood_threshold,0.00001  ); //
 	pn.param<double>("target_likelihood_threshold",target_likelihood_threshold,0.5);
 	pn.param<int>("num_particles",numParticlesInitialBelief,100);
-	
+	pn.param<double>("target_lost_timeout",target_lost_timeout,2.0); // The target should be lost this time before doing data association
 	pn.param<int>("planner_mode",planner_mode,0); 
 	ModelType modelType = (ModelType)planner_mode;
 
@@ -763,6 +766,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 		std::cout<<target_id<<" MAX LIKELIHOOD: "<<max<<std::endl;
 		if (target_id_found) {		
 			std::cout<<"TARGET LIKELIHOOD: "<<target_likelihood<<std::endl;
+			target_timer.reset();
 		}
 		if (max>likelihood_threshold) {
 			if (target_id_found) {
@@ -777,7 +781,7 @@ void Planner::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& peopl
 									target_id_vel * std::sin(target_id_yaw));
 					target_hidden = false;
 				}				
-			} else {
+			} else if (target_timer.elapsed()>2.0){
 				targetId = target_id;
 				simulator->target_pos.set(target_x,target_y);
 				simulator->target_vel.set(target_vel * std::cos(target_yaw), target_vel * std::sin(target_yaw));

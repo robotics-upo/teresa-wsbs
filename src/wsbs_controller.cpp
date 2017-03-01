@@ -150,6 +150,8 @@ private:
 	geometry_msgs::Twist zeroTwist;
 
 	bool is_finishing;
+	bool break_if_aborted;
+	bool break_if_finished;
 
 	bool use_leds;
 
@@ -182,6 +184,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double goal_timeout_threshold;
 	double freq;
 	
+	
 	std::string path_file;	
 	zeroTwist.linear.x = 0;
 	zeroTwist.linear.y = 0;
@@ -203,15 +206,16 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("laser_timeout",laser_timeout_threshold,0.5);
 	pn.param<double>("xtion_timeout",xtion_timeout_threshold,0.5);
 	pn.param<double>("people_timeout",people_timeout_threshold,1200.0);
-	pn.param<double>("finish_timeout",finish_timeout_threshold,10);
-	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,30);
+	pn.param<double>("finish_timeout",finish_timeout_threshold,5); // 10
+	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,5); // 30
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
 	pn.param<bool>("use_leds",use_leds,false);
 	pn.param<int>("number_of_leds",number_of_leds,60);
 	pn.param<bool>("use_estimated_target",use_estimated_target,false);
 	pn.param<bool>("publish_target",publish_target,true);
 	pn.param<std::string>("path_file",path_file,"");
-	
+	pn.param<bool>("break_if_aborted",break_if_aborted,false);
+	pn.param<bool>("break_if_finished",break_if_finished,false);
 	AStarPathProvider pathProvider(path_file);
 	
 	pn.param<double>("freq",freq,15);
@@ -295,6 +299,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	ros::Rate r(freq);
 	//double dt = 1/freq;
 	bool finishing;
+	controller_mode_goal.set(24.4989,26.5523);
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
@@ -321,7 +326,13 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			ROS_WARN("WSBS controller desired rate not met");
 	
 		ros::spinOnce();
-		publishStatus();	
+		publishStatus();
+		if (break_if_aborted && state == ABORTED) {
+			break;
+		}
+		if (break_if_finished && state == FINISHED) {
+			break;
+		}	
 	}
 }
 
@@ -655,6 +666,7 @@ void Controller::setState(const State& state)
 	if (state == Controller::state) {
 		return;
 	}
+	
 		
 	if ( (Controller::state == RUNNING && state != TARGET_LOST) ||
 		(Controller::state == TARGET_LOST && state != RUNNING)) {
@@ -752,7 +764,8 @@ void Controller::publishForces()
 	forces.status = (uint8_t)state;
 	forces.mode = (uint8_t)controller_mode;
 	forces.target_detected = FORCES.getData().targetFound;
-
+	forces.target_id = targetId;
+	
 	forces.target_pose.x = FORCES.getData().target.position.getX();
 	forces.target_pose.y = FORCES.getData().target.position.getY();
 	forces.target_pose.theta = FORCES.getData().target.yaw.toRadian();

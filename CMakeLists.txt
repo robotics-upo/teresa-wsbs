@@ -149,7 +149,7 @@ add_executable(wsbs_bag_stats src/wsbs_bag_stats.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(wsbs_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(wsbs_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} teresa_wsbs_generate_messages_cpp)
 add_dependencies(wsbs_analysis ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_paths ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

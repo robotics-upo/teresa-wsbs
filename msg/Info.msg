@@ -17,6 +17,7 @@ uint8 mode				        	# LEFT	      = 0
 							# WAIT        = 4 
 
 bool target_detected					# True is the target is being detected
+int32 target_id						# Target ID
 
 geometry_msgs/Pose2D target_pose 			# measured by sensors
 geometry_msgs/Pose2D robot_pose  			# measured by odometry
