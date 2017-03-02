@@ -12,22 +12,26 @@
 #include <teresa_wsbs/Info.h>
 #include <animated_marker_msgs/AnimatedMarkerArray.h>	
 #include <fstream>
+#include <plab/PLabInfo.h>
 
 #define foreach BOOST_FOREACH
 
 std::vector<double> distance_to_target;
-std::vector<double> target_force;
+std::vector<utils::Vector2d> target_force;
+std::vector<utils::Vector2d> target_trajectory;
 utils::Vector2d robot_position;
 utils::Vector2d target_position;
 utils::Angle target_yaw;
 std::vector<utils::Vector2d> people_position;
 std::vector<utils::Angle> people_yaw;
 std::vector<double> confort;
+std::vector<unsigned> target_detected;
 std::ofstream out_stream;
 double lambda;
 double robot_area_radius;
 int confort_particles;
-
+bool available_groundtruth=true;
+std::string bag_name;
 
 // return true if x is in inside the intimate distance(*factor) of person p with yaw
 bool intimateDistance(const utils::Vector2d& x, const utils::Vector2d& p, const utils::Angle& yaw, double factor=1.0)
@@ -84,12 +88,18 @@ double calculateConfort()
 
 bool calculateMetrics(int trajectory_index, double time)
 {
-	bool valid_trajectory = distance_to_target.size()>0 && target_force.size()>0;
+	bool valid_trajectory = distance_to_target.size()>0 && target_detected.size()>0 && confort.size()>0;
 	if (!valid_trajectory) {
+		distance_to_target.clear();
+		target_force.clear();
+		target_detected.clear();
+		confort.clear();
+		target_trajectory.clear();
+		
 		return false;
 	}
 
-	out_stream<<trajectory_index<<"\t"<<time;
+	out_stream<<bag_name<<"\t"<<trajectory_index<<"\t"<<time;
 	if (distance_to_target.size()>0) {
 		double d=0;
 		for (unsigned i=0;i<distance_to_target.size();i++) {
@@ -102,18 +112,22 @@ bool calculateMetrics(int trajectory_index, double time)
 	} else {
 		out_stream<<"\tInf";
 	}
-	if (target_force.size()>0) {
-		double f=0;
-		for (unsigned i=0;i<target_force.size();i++) {
-			f+=target_force[i];
+	if (target_force.size()>1 && target_trajectory.size()>1) {
+		double work=0;
+		for (unsigned i=0;i<std::min(target_trajectory.size()-1,target_force.size()-1);i++) {
+			utils::Vector2d d = target_trajectory[i+1] - target_trajectory[i];
+			//work += target_force[i].norm() * d.norm() * d.angleTo(target_force[i]).cos();
+			work += target_force[i].dot(target_trajectory[i+1] - target_trajectory[i]);
 		}
-		f /= (double) target_force.size();
-		out_stream<<"\t"<<f;
-		ROS_INFO("Average Target Group Force: %f",f);
+		out_stream<<"\t"<<work;
+		ROS_INFO("Target Work: %f",work);
 		target_force.clear();
+		target_trajectory.clear();
 	} else {
 		out_stream<<"\tInf";
 	}
+
+
 	if (confort.size()>0) {
 		double average_confort=0;
 		for (unsigned i=0;i<confort.size();i++) {
@@ -123,6 +137,19 @@ bool calculateMetrics(int trajectory_index, double time)
 		out_stream<<"\t"<<average_confort;
 		ROS_INFO("Average confort: %f",average_confort);
 		confort.clear();
+	} else {
+		out_stream<<"\t0";
+	}
+	if (target_detected.size()>0) {
+		double average_target_detected=0;
+		for (unsigned i=0;i<target_detected.size();i++) {
+			average_target_detected+=target_detected[i];
+		}
+		average_target_detected /= (double) target_detected.size();
+		out_stream<<"\t"<<average_target_detected;
+		ROS_INFO("Target detected: %f",average_target_detected);
+		target_detected.clear(); 
+
 	} else {
 		out_stream<<"\t0";
 	}
@@ -141,11 +168,33 @@ void readPeople(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people_ptr)
 	}
 }
 
+
+void readGroundtruth(animated_marker_msgs::AnimatedMarkerArray::ConstPtr& marker_array_ptr)
+{
+	people_position.resize(marker_array_ptr->markers.size());
+	people_yaw.resize(marker_array_ptr->markers.size());
+	for (unsigned i = 0; i<marker_array_ptr->markers.size(); i++) {
+		people_position[i].set(marker_array_ptr->markers[i].pose.position.x,marker_array_ptr->markers[i].pose.position.y);
+		people_yaw[i] = utils::Angle::fromRadian(tf::getYaw(marker_array_ptr->markers[i].pose.orientation));
+		people_yaw[i] += utils::Angle::fromRadian(M_PI*0.5);	
+		if (marker_array_ptr->markers[i].color.r > 0.5) {
+			target_position = people_position[i];
+			target_yaw = people_yaw[i];
+		}	
+	}
+	distance_to_target.push_back((robot_position-target_position).norm());
+	confort.push_back(calculateConfort());
+}
+
+
 void readTarget(animated_marker_msgs::AnimatedMarkerArray::ConstPtr& marker_array_ptr)
 {
 	target_position.set(marker_array_ptr->markers[0].pose.position.x,marker_array_ptr->markers[0].pose.position.y);
 	target_yaw = utils::Angle::fromRadian(tf::getYaw(marker_array_ptr->markers[0].pose.orientation));
-	target_yaw += utils::Angle::fromRadian(M_PI*0.5);	
+	target_yaw += utils::Angle::fromRadian(M_PI*0.5);
+	if (!available_groundtruth) {
+		target_trajectory.push_back(target_position);
+	}	
 	distance_to_target.push_back((robot_position-target_position).norm());
 	confort.push_back(calculateConfort());
 }
@@ -158,23 +207,52 @@ void readOdom(const nav_msgs::Odometry::ConstPtr& odom)
 
 void readInfo(const teresa_wsbs::Info::ConstPtr& info)
 {
-	if (!info->target_detected || info->status!=5) {
+	if (info->status!=5 && info->status!=6) {
 		return;
 	}
-	utils::Vector2d f(info->target_group_force.x,info->target_group_force.y);
-	target_force.push_back(f.norm());
+	
+	if (info->status == 6) {
+		target_detected.push_back(0);
+	} else {
+		if (available_groundtruth) {
+			utils::Vector2d target0(info->target_pose.x, info->target_pose.y);
+			if ((target_position - target0).norm() < 0.3) {
+				target_detected.push_back(1);
+			} else {
+				target_detected.push_back(0);
+			}
+		} else {
+			target_detected.push_back(1);
+		}
+	}
+
+	if (!available_groundtruth) {
+		utils::Vector2d f(info->target_group_force.x, info->target_group_force.y);
+		target_force.push_back(f);
+	}
+	
 }	
+
+void readTargetForcesGroundtruth(plab::PLabInfo::ConstPtr& info)
+{
+	utils::Vector2d pos(info->target_pose.x,info->target_pose.y);
+	//utils::Vector2d f(info->target_group_force.x,info->target_group_force.y);
+	utils::Vector2d f(info->target_global_force.x,info->target_global_force.y);	
+	target_trajectory.push_back(pos);
+	target_force.push_back(f);
+}
 
 int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "wsbs_stats");
 	ros::NodeHandle n;
 	ros::NodeHandle pn("~");
-	std::string bag_name, people_topic;
+	std::string  people_topic;
 	std::string out_file;
 	bool trajectory_running=false;
 	unsigned trajectory_counter=0;
 	bool use_clicked_points=false;
+	
 	
 	double initial_time;
 	pn.param<std::string>("bag_name",bag_name,"/home/ignacio/baseline.bag"); // Bag name
@@ -182,20 +260,28 @@ int main(int argc, char** argv)
 	pn.param<std::string>("out_file",out_file,"/home/ignacio/results.txt");
 	pn.param<double>("robot_area_radius",robot_area_radius,0.5); 
 	pn.param<int>("confort_particles",confort_particles,1000);
-	pn.param<bool>("use_clicked_points",use_clicked_points,false);	
-	pn.param<double>("lambda",lambda,0.4);
+	pn.param<bool>("use_clicked_points",use_clicked_points,true);  // false	
+	pn.param<bool>("available_groundtruth",available_groundtruth,false); // true
+	pn.param<double>("lambda",lambda,0.59);
 	if (argc!=1) {
 		bag_name = argv[1];
 	}
 	std::vector<std::string> topics;
-	topics.push_back(people_topic);
+	
 	topics.push_back("/odom");
 	topics.push_back("/wsbs/controller/info");
 	topics.push_back("/clicked_point");
-	topics.push_back("/wsbs/markers/target");
-	
-  	out_stream.open (out_file);
-	out_stream<<"Trajectory index\tTime\tAverage Distance to Target\tAverage Target Social Force\tConfort\n";
+
+	if (available_groundtruth) {
+		topics.push_back("/plab/markers/people");
+		topics.push_back("/plab/info");
+	} else {
+		topics.push_back(people_topic);
+		topics.push_back("/wsbs/markers/target");
+	}
+
+  	out_stream.open (out_file, std::ios::app);
+	//out_stream<<"File name trajectory index\tTime\tAverage Distance to Target\tTarget Work\tConfortTarget detected\n";
 	rosbag::Bag bag;
 	ROS_INFO("Opening bag %s...",bag_name.c_str());
 	bag.open(bag_name,rosbag::bagmode::Read);
@@ -205,7 +291,6 @@ int main(int argc, char** argv)
 	ros::Time time;
 	foreach(rosbag::MessageInstance const m, view) {
 		time = m.getTime();
-		//ROS_INFO("Reading %s at time %f s. ",m.getTopic().c_str(),m.getTime().toSec());
 		if (m.getTopic().compare(people_topic)==0) {
 			upo_msgs::PersonPoseArrayUPO::ConstPtr people_ptr = m.instantiate<upo_msgs::PersonPoseArrayUPO>();
 			readPeople(people_ptr);
@@ -213,8 +298,11 @@ int main(int argc, char** argv)
 			nav_msgs::Odometry::ConstPtr odom_ptr = m.instantiate<nav_msgs::Odometry>();
 			readOdom(odom_ptr);
 		} else if (m.getTopic().compare("/wsbs/controller/info")==0) {
+			//std::cout<<"A"<<std::endl;
 			teresa_wsbs::Info::ConstPtr info_ptr = m.instantiate<teresa_wsbs::Info>();
+			//std::cout<<"B"<<std::endl;
 			readInfo(info_ptr);
+			//std::cout<<"C"<<std::endl;
 		} else if (m.getTopic().compare("/wsbs/markers/target")==0) {
 			animated_marker_msgs::AnimatedMarkerArray::ConstPtr marker_array_ptr =
 						m.instantiate<animated_marker_msgs::AnimatedMarkerArray>();
@@ -233,9 +321,15 @@ int main(int argc, char** argv)
 					trajectory_counter--;
 				}
 			}
-			
+		} else if (m.getTopic().compare("/plab/markers/people")==0) {
+				animated_marker_msgs::AnimatedMarkerArray::ConstPtr marker_array_ptr =
+						m.instantiate<animated_marker_msgs::AnimatedMarkerArray>();
+				readGroundtruth(marker_array_ptr);
+		} else if (m.getTopic().compare("/plab/info")==0) {
+				plab::PLabInfo::ConstPtr info = m.instantiate<plab::PLabInfo>();
+				m.instantiate<plab::PLabInfo>();
+				readTargetForcesGroundtruth(info);
 		}
-
 	}
 	if (!use_clicked_points) {
 		ROS_INFO("Trajectory N. %d finishes at time %f s",trajectory_counter,time.toSec());
