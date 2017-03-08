@@ -19,7 +19,9 @@ enum ModelType
 	ONLY_HEURISTIC,
 	ONLY_GO_TO_GOAL,
 	HEURISTIC_AND_GO_TO_GOAL,
-	LEFT_RIGHT_BEHIND
+	LEFT_RIGHT_BEHIND,
+	LEFT_RIGHT_BEHIND_WAIT,
+	LEFT_RIGHT_BEHIND_WAIT_GO_TO_GOAL
 };
 
 namespace model
@@ -397,7 +399,7 @@ double Simulator::getReward(const State& state,double force) const
 	sfm::Map *map = &sfm::MAP;
 	double alpha = map->getNearestObstacle(state.robot_pos).distance;
 	double beta = (state.robot_pos - state.target_pos).norm();
-	return alphaFactor*alpha + betaFactor*beta + gammaFactor*force;
+	return alphaFactor*alpha + betaFactor*beta; /* + gammaFactor*force;*/
 	
 }
 
@@ -420,29 +422,51 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 		case ONLY_GO_TO_GOAL:
 			return action==SET_FINAL_GOAL;
 		case HEURISTIC_AND_GO_TO_GOAL:
-			return  action==HEURISTIC || action == SET_GOAL;
+			return action==HEURISTIC || action == SET_GOAL;
+		case LEFT_RIGHT_BEHIND:
+			return action==LEFT || action ==RIGHT || action == BEHIND;
+		case LEFT_RIGHT_BEHIND_WAIT:
+			return action==LEFT || action ==RIGHT || action == BEHIND || action==WAIT;
 		default:
-			return action==LEFT || action==RIGHT || action==BEHIND;
+			return action==LEFT || action ==RIGHT || action == BEHIND || action==WAIT || action == SET_GOAL;
+
 	}
-	//return action==HEURISTIC;	
-	//return action==HEURISTIC || action == SET_GOAL;
-	//return action!=FOLLOW_PATH && action!=WAIT;	
-	/*
-	if (action == FOLLOW_PATH || action==WAIT ) {
+
+
+	/*if (modelType == ONLY_HEURISTIC) {
+		return action==HEURISTIC;
+	}
+	if (modelType == ONLY_GO_TO_GOAL) {
+		return action==SET_FINAL_GOAL;
+	}
+	if (modelType == HEURISTIC_AND_GO_TO_GOAL) {
+		return action==HEURISTIC || action == SET_GOAL;
+	}
+	if (action == LEFT || action == RIGHT || action == BEHIND) {
+		utils::Vector2d v;
+		if (action == LEFT) {
+			v = state.target_pos + 2.0 * state.target_vel + state.target_vel.normalized().leftNormalVector();
+		} else if (action == RIGHT) {
+			v = state.target_pos + 2.0 * state.target_vel + state.target_vel.normalized().rightNormalVector();
+		} else {
+			v = state.target_pos + 2.0 * state.target_vel - state.target_vel.normalized();
+		} 
+	
+		sfm::Map *map = &sfm::MAP;
+		return map->getNearestObstacle(v).distance > 0.2;
+	}
+	if (modelType == LEFT_RIGHT_BEHIND) {
 		return false;
 	}
-	if (action == BEHIND || action == SET_GOAL) {
-		return true;
+	if (modelType == LEFT_RIGHT_BEHIND_WAIT) {
+		return action==WAIT;
 	}
-	utils::Vector2d v;
-	if (action == LEFT) {
-		v = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().leftNormalVector();
-	} else if (action == RIGHT) {
-		v = state.target_pos + naiveGoalTime * state.target_vel + state.target_vel.normalized().rightNormalVector();
-	} 
-	
-	sfm::Map *map = &sfm::MAP;
-	return !map->isObstacle(v);
+
+	if (modelType == LEFT_RIGHT_BEHIND_WAIT_GO_TO_GOAL) {
+		return action==WAIT || action==SET_GOAL;
+	}
+
+	return true;
 	*/
 }
 
