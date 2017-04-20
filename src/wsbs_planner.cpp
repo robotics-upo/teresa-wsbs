@@ -81,6 +81,8 @@ private:
 	void otherPeopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people);
 	static double getPDF(double x, double y, const utils::Vector2d& m,  double sd0, double sd1, double cov);
 	double getTargetLikelihood(double x, double y);
+	void getLikelyGoal(const sfm::Agent& a, sfm::Goal& goal);
+
 	utils::Vector2d publishGoals(const pomcp::VectorBelief<model::State>& belief);
 	model::Observation& getObservation(model::Observation& observation);
 	ros::ServiceClient controller_start;
@@ -103,11 +105,13 @@ private:
 	double likelihood_threshold;
 	std::map<utils::Vector2d, double> goals;
 	double target_likelihood_threshold;
-	void addOtherAgent(double x, double y);
+	void addOtherAgent(double x, double y, double vel, double yaw);
 	std::vector<sfm::Agent> otherAgents;
 	bool reset;
 	double target_lost_timeout;
 	utils::Timer target_timer;
+	double running_time;
+	int future_agents_size;
 };
 
 inline
@@ -124,7 +128,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double freq, discount;
 	std::string path_file;
 	double lookahead,naive_goal_time,timeout,threshold,exploration_constant;
-	double tracking_range,running_time;
+	double tracking_range;
 	std::string odom_id, people_id, other_people_id;
 	int numParticlesInitialBelief;
 	
@@ -150,6 +154,7 @@ Planner::Planner(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<int>("num_particles",numParticlesInitialBelief,100);
 	pn.param<double>("target_lost_timeout",target_lost_timeout,2.0); // The target should be lost this time before doing data association
 	pn.param<int>("planner_mode",planner_mode,0); 
+	pn.param<int>("future_agents_size",future_agents_size,10);
 	ModelType modelType = (ModelType)planner_mode;
 
 	AStarPathProvider pathProvider(path_file);
@@ -315,7 +320,7 @@ void Planner::publishPrediction(animated_marker_msgs::AnimatedMarkerArray& marke
 	}
 
 	
-		for (unsigned iteration=0; iteration<200 && (agents[1].position - goal).norm() > 0.5; iteration++) {
+	for (unsigned iteration=0; iteration<200 && (agents[1].position - goal).norm() > 0.5; iteration++) {
 		sfm::Goal robotLocalGoal;
 		robotLocalGoal.radius = 0.5;
 		aStar_ptr->getNextPoint(agents[0].position,goal,robotLocalGoal.center);
@@ -809,36 +814,78 @@ void Planner::otherPeopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& 
 
 	for(int i=0; i< (int)people->personPoses.size() && initiated; i++)
 	{
-
 		if(people->personPoses[i].id != targetId)
 		{
 			double x = people->personPoses[i].position.x;
 			double y = people->personPoses[i].position.y;
+			double vel = people->personPoses[i].vel;
 			double yaw = tf::getYaw(people->personPoses[i].orientation);
 			if (TF.transformPose(x, y, yaw, people->personPoses[i].header.frame_id, "map")) {
-				simulator->addOtherAgent(x,y);
-				addOtherAgent(x,y);
+				simulator->addOtherAgent(x,y,vel,yaw);
+				addOtherAgent(x,y,vel,yaw);
 			}
 		}
+	}
+	simulator->futureAgents.clear();
+	if (simulator->otherAgents.size()>0) {
+		simulator->futureAgents.resize(future_agents_size);
+		simulator->futureAgents[0] = simulator->otherAgents;
+		std::vector<sfm::Goal> goals;
+		goals.resize(simulator->otherAgents.size());
+		for (unsigned k=0; k< simulator->otherAgents.size(); k++) {
+			getLikelyGoal(simulator->otherAgents[k],goals[k]);
+		}
+		for (int i=0;i<future_agents_size;i++) {
+			for (unsigned j=0;j<simulator->futureAgents[i].size();j++){
+				//sfm::Goal g;
+				//g.center = simulator->futureAgents[i][j].position + 2.0*simulator->futureAgents[i][j].velocity;
+				//g.radius = 0.25;
+				simulator->futureAgents[i][j].goals.clear();
+				//simulator->futureAgents[i][j].goals.push_back(g);
+				simulator->futureAgents[i][j].goals.push_back(goals[j]);
+			}
+			sfm::SFM.computeForces(simulator->futureAgents[i],&sfm::MAP);
+			sfm::SFM.updatePosition(simulator->futureAgents[i],running_time);
+			if (i<future_agents_size-1) {
+				simulator->futureAgents[i+1] = simulator->futureAgents[i];
+			}
+		}
+	}
+}
 
+
+
+
+void Planner::getLikelyGoal(const sfm::Agent& a, sfm::Goal& goal)
+{
+	double x,y,r;	
+	utils::Vector2d goal_pos,next_pos;
+	for (unsigned i=0; i< aStar_ptr->getAStar().getGoals().size(); i++) {
+		std::string goal_id = aStar_ptr->getAStar().getGoals()[i];
+		aStar_ptr->getAStar().getPos(goal_id,x,y,r);
+		goal_pos.set(x,y);
+		aStar_ptr->getNextPoint(a.position,goal_pos,next_pos);
+		
+		
 	}
 
 
 }
 
-void Planner::addOtherAgent(double x, double y)
+  
+void Planner::addOtherAgent(double x, double y, double vel, double yaw)
 {
 	sfm::Agent a;
 
 	a.position = utils::Vector2d(x,y);
-	a.velocity = utils::Vector2d(0.0,0.0);
-	a.yaw.setRadian(0.0);
-	a.desiredVelocity = 0.0;
+	a.velocity = utils::Vector2d(vel*cos(yaw),vel*sin(yaw));
+	a.yaw = utils::Angle::fromRadian(yaw);
+	a.desiredVelocity = vel;
 	a.groupId = -1;
-
 	otherAgents.push_back(a);
 
 }
+
 
 
 }

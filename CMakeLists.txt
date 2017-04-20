@@ -142,6 +142,7 @@ include_directories(
 
 ## Declare a C++ executable
 add_executable(wsbs_controller src/wsbs_controller.cpp)
+add_executable(wsbs_controller1 src/wsbs_controller1.cpp)
 add_executable(wsbs_analysis src/wsbs_analysis.cpp)
 add_executable(wsbs_planner src/wsbs_planner.cpp)
 add_executable(wsbs_paths src/wsbs_paths.cpp)
@@ -150,6 +151,7 @@ add_executable(wsbs_paths src/wsbs_paths.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(wsbs_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} teresa_wsbs_generate_messages_cpp)
+add_dependencies(wsbs_controller1 ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} teresa_wsbs_generate_messages_cpp)
 add_dependencies(wsbs_analysis ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(wsbs_paths ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -158,6 +160,11 @@ add_dependencies(wsbs_paths ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTE
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(wsbs_controller
+   ${catkin_LIBRARIES}
+   ${TinyXML_LIBRARIES}
+)
+
+target_link_libraries(wsbs_controller1
    ${catkin_LIBRARIES}
    ${TinyXML_LIBRARIES}
 )

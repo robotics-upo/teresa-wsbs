@@ -44,31 +44,7 @@
 namespace wsbs
 {
 
-class Timeout
-{
-public:
-	Timeout() :id(""), time(ros::Time::now()), timeout(0) {}
-	void setId(const std::string& id) {Timeout::id = id;}
-	void setTimeout(double timeout) {Timeout::timeout = timeout;}
-	void setTime(const ros::Time& time) {Timeout::time = time;}
-	double getTimeout() const {return timeout;}
-	const ros::Time& getTime() const {return time;}
-	double getTimeElapsed() const {return (ros::Time::now() - time).toSec();}
-	bool check(const ros::Time& current, bool isError = true) const
-	{
-		if ((current - time).toSec() >= timeout) {
-			if (isError) {
-				ROS_ERROR("%s timeout", id.c_str());
-			}
-			return true;
-		}
-		return false;
-	}
-private:
-	std::string id;
-	ros::Time time;
-	double timeout;
-};
+
 
 
 struct Obstacle

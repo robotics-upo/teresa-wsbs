@@ -125,7 +125,6 @@ public:
 	virtual ~AStarPathProvider() {}
 	virtual utils::Vector2d& getNextPoint(const utils::Vector2d& position, const utils::Vector2d& goal, utils::Vector2d& nextPoint)
 	{
-		
 		std::string start_id,goal_id;
 		aStar.getClosestNode(position.getX(),position.getY(),start_id);
 		aStar.getClosestNode(goal.getX(),goal.getY(),goal_id);
@@ -142,6 +141,7 @@ public:
 		nextPoint.set(x,y);
 		return nextPoint;
 	}
+	utils::AStar& getAStar() {return aStar;}
 private:
 	utils::AStar aStar;
 	
@@ -161,7 +161,8 @@ public:
 	const utils::Vector2d& getRobotLocalGoal(const ControllerMode& mode) const;
 	const std::vector<utils::Vector2d>& getGoals() const {return pathProvider.getGoals();}	
 	PathProvider& getPathProvider() {return pathProvider;}
-	
+	const std::list<utils::Vector2d>& getHistory() const {return history;}	
+
 private:
 	double threshold;
 	unsigned size;

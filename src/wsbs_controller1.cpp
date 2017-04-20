@@ -25,8 +25,10 @@
 #include <teresa_wsbs/start.h>
 #include <teresa_wsbs/stop.h>
 #include <teresa_wsbs/select_mode.h>
-#include <teresa_wsbs/common.hpp>
 #include <teresa_wsbs/select_target_id.h>
+#include <teresa_wsbs/forces.hpp>
+#include <teresa_wsbs/cmd_vel.hpp>
+#include <teresa_driver/Teresa_leds.h>
 #include <upo_msgs/PersonPoseArrayUPO.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
@@ -34,13 +36,7 @@
 #include <teresa_wsbs/Info.h>
 #include <animated_marker_msgs/AnimatedMarker.h>
 #include <animated_marker_msgs/AnimatedMarkerArray.h>	
-#include <tf/transform_listener.h>
-#include <visualization_msgs/Marker.h>
-#include <visualization_msgs/MarkerArray.h>
-#include <lightsfm/sfm.hpp>
-#include <lightsfm/cmd_vel.hpp>
-
-
+#include <lightsfm/rosmap.hpp>
 
 namespace wsbs
 {
@@ -75,7 +71,6 @@ private:
 	ros::Time time;
 	double timeout;
 };
-
 
 class Controller
 {
@@ -126,25 +121,24 @@ private:
 					const utils::Vector2d& force, visualization_msgs::MarkerArray& markers);
 
 	
-	void publishTrajectories(sfm::CmdVelProvider& cmdVelProvider);
+	void publishTrajectories();
 	void stopRobot();
 	void setState(const State& state);
 	static const char *getStateId(const State& state);
 
+	void setLeds();
 	
-	void reset();
 	void publishTarget();
 	void publishScan();
 
 	static std_msgs::ColorRGBA getColor(double r, double g, double b, double a);
 
 	void publishForces();
-	void publishPath(const GoalProvider& goalProvider);
+	void publishPath();
 	void publishGoal();
 	void publishStatus();
 	void checkEndingCondition(bool finishing);
 	void checkTimeouts(const ros::Time& current_time);
-	
 
 	State state;
 
@@ -178,7 +172,7 @@ private:
 	ros::Publisher forces_pub;
 	ros::Publisher scan_pub;
 	
-
+	ros::ServiceClient leds_client;
 
 	geometry_msgs::Twist zeroTwist;
 
@@ -186,58 +180,27 @@ private:
 	bool break_if_aborted;
 	bool break_if_finished;
 
-	std::vector<sfm::Agent> agents; // 0: robot, 1..: Others 
+	bool use_leds;
+
+	int number_of_leds;
 
 	utils::Vector2d currentGoal;
 	utils::Vector2d targetPos;
 	utils::Vector2d targetVel;
-	sfm::Goal robot_local_goal;
-	
-	
+	utils::Vector2d targetMarkerPos;
+	double targetMarkerVel;
+	double targetMarkerYaw;
 	bool use_estimated_target;
 	bool clicked_goals;
 	
 	bool publish_target;
-
-	double robot_radius;
-	double person_radius;
-	bool heuristic_controller;
-	bool targetFound;
-	unsigned target_index;
-	
-
-	double obstacle_distance_threshold;
-	double naive_goal_time;
-
-	double goal_radius;
-	double target_velocity;
-	double people_velocity;
-	double robot_velocity;
-
-	double robot_max_lin_acc;
-	double robot_max_ang_acc;
-	double beta_v;
-	double beta_y;
-	double beta_d;
-	
-	sfm::CmdVelProvider *cmdVelProviderPtr;
-	GoalProvider *goalProviderPtr;
-
-	ros::Time modelTime;
-	double modelTimeStep;
-	utils::Vector2d modelPos;
-	std::vector<double> controllerError;
-	
 };
 
 
 Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 :  state(WAITING_FOR_START),
    controller_mode(HEURISTIC),
-   is_finishing(false),
-   targetFound(false),
-   target_index(0),
-   modelTimeStep(1.0)
+   is_finishing(false)
 {
 	double odom_timeout_threshold;
 	double laser_timeout_threshold;
@@ -247,7 +210,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	double target_lost_timeout_threshold;
 	double goal_timeout_threshold;
 	double freq;
-	double lookahead;
+	
 	
 	std::string path_file;	
 	zeroTwist.linear.x = 0;
@@ -263,16 +226,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<std::string>("people_id",people_id,"/people/navigation");
 	pn.param<std::string>("cmd_vel_id",cmd_vel_id,"/cmd_vel");
 	
-	pn.param<double>("robot_radius",robot_radius,0.35);
-	pn.param<double>("person_radius",person_radius,0.35);
-	pn.param<double>("target_velocity",target_velocity,0.6);
-	pn.param<double>("people_velocity",people_velocity,0.6);
-	pn.param<double>("robot_velocity",robot_velocity,0.6);
-	pn.param<double>("robot_max_lin_acc",robot_max_lin_acc,1.0);
-	pn.param<double>("robot_max_ang_acc",robot_max_ang_acc,2.0);
-	pn.param<double>("beta_v",beta_v,0.4);
-	pn.param<double>("beta_y",beta_y,0.3);
-	pn.param<double>("beta_d",beta_d,0.3);
+	pn.param<double>("robot_radius",FORCES.getParams().robotRadius,0.35);
+	pn.param<double>("person_radius",FORCES.getParams().personRadius,0.35);
 
 	pn.param<double>("odom_timeout",odom_timeout_threshold,0.5);
 	pn.param<double>("laser_timeout",laser_timeout_threshold,0.5);
@@ -281,20 +236,17 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	pn.param<double>("finish_timeout",finish_timeout_threshold,5); // 10
 	pn.param<double>("target_lost_timeout",target_lost_timeout_threshold,5); // 30
 	pn.param<double>("goal_timeout_threshold",goal_timeout_threshold,40);
+	pn.param<bool>("use_leds",use_leds,false);
+	pn.param<int>("number_of_leds",number_of_leds,60);
 	pn.param<bool>("use_estimated_target",use_estimated_target,false);
 	pn.param<bool>("publish_target",publish_target,true);
 	pn.param<std::string>("path_file",path_file,"");
 	pn.param<bool>("break_if_aborted",break_if_aborted,false);
 	pn.param<bool>("break_if_finished",break_if_finished,false);
-	pn.param<double>("obstacle_distance_threshold",obstacle_distance_threshold,2.0);	
-	pn.param<double>("naive_goal_time",naive_goal_time,2.0);
-	pn.param<double>("goal_radius",goal_radius,0.25);
-	pn.param<double>("lookahead",lookahead,2.0);	
-	
 	AStarPathProvider pathProvider(path_file);
 	
 	pn.param<double>("freq",freq,15);
-	pn.param<bool>("heuristic_controller",heuristic_controller, true);
+	pn.param<bool>("heuristic_controller",FORCES.getParams().heuristicPlanner, true);
 	pn.param<bool>("clicked_goals",clicked_goals,false); // Controller no heuristic, no data association, going to goal clicked in Rviz
 	
 	if (clicked_goals) {
@@ -302,7 +254,7 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	}
 	ros::ServiceServer select_mode_srv;
 	std::string start_service_name, stop_service_name;
-	if (heuristic_controller || clicked_goals) {
+	if (FORCES.getParams().heuristicPlanner || clicked_goals) {
 		start_service_name = "/wsbs/start";
 		stop_service_name = "/wsbs/stop";
 	} else {
@@ -325,11 +277,9 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	if (!xtion_id.empty()) {
 		xtion_sub = n.subscribe<sensor_msgs::LaserScan>(xtion_id, 1, &Controller::xtionReceived,this);
 	}
-	agents.resize(1);
-	agents[0].desiredVelocity = robot_velocity;
-	agents[0].radius = robot_radius;
-	agents[0].cyclicGoals = false;
-	agents[0].teleoperated = true;
+	if (use_leds) {
+		leds_client =  n.serviceClient<teresa_driver::Teresa_leds>("teresa_leds");
+	}
 
 	status_pub = pn.advertise<std_msgs::UInt8>("/wsbs/status", 1);
 	cmd_vel_pub = n.advertise<geometry_msgs::Twist>(cmd_vel_id, 1);
@@ -341,6 +291,8 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	goal_pub = pn.advertise<visualization_msgs::Marker>("/wsbs/markers/local_goal", 1);
 	trajectories_pub = pn.advertise<visualization_msgs::MarkerArray>("/wsbs/markers/trajectories", 1);
 	
+	sfm::MAP;
+
 	odom_timeout.setId(odom_id);
 	odom_timeout.setTimeout(odom_timeout_threshold);
 	odom_timeout.setTime(ros::Time::now());
@@ -375,50 +327,26 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 	//double dt = 1/freq;
 	bool finishing;
 	controller_mode_goal.set(24.4989,26.5523);
-
-	GoalProvider goalProvider(0.5,100,lookahead,naive_goal_time,1.0,"odom",pathProvider);
-	goalProviderPtr = &goalProvider;
-
-	sfm::CmdVelProvider cmdVelProvider(obstacle_distance_threshold,robot_velocity ,robot_max_lin_acc,robot_max_ang_acc, beta_v,  beta_y,  beta_d);
-	cmdVelProviderPtr = &cmdVelProvider;
 	while(n.ok()) {
 		checkTimeouts(ros::Time::now());
 		if (state == RUNNING || state == TARGET_LOST) {
 			if (people_timeout.getTimeElapsed()>=1.0) {
 				peopleReceived(ptr);
 			}
-			
-			goalProvider.update(agents[0].position,targetPos,targetVel,controller_mode_goal);
-			agents[0].goals.clear();
-			robot_local_goal.center = goalProvider.getRobotLocalGoal(controller_mode);
-			robot_local_goal.radius = goal_radius;
-			agents[0].goals.push_back(robot_local_goal);
-			sfm::SFM.computeForces(agents);
-			if ((ros::Time::now() - modelTime).toSec()>modelTimeStep) {
-				double error = (agents[0].position - modelPos).norm();
-				controllerError.push_back(error);
-				//std::cout<<error<<std::endl;
-				modelTime = ros::Time::now();
-				utils::Vector2d vel = agents[0].velocity + agents[0].forces.globalForce * modelTimeStep;
-				if (vel.norm() > agents[0].desiredVelocity) {
-					vel.normalize();
-					vel *= agents[0].desiredVelocity;
-				}
-				modelPos = agents[0].position + vel * modelTimeStep;
-				
-			}
-			finishing=cmdVelProvider.compute(agents[0],agents[target_index],targetFound,!agents[0].antimove,agents[0].params.relaxationTime);
-			cmd_vel_pub.publish(cmdVelProvider.getCommand());
-
-
+			FORCES.compute(controller_mode, controller_mode_goal,&pathProvider);
+			finishing = CMD_VEL.compute(FORCES.getParams().relaxationTime);
+			//finishing = CMD_VEL.compute(dt);
+			cmd_vel_pub.publish(CMD_VEL.getCommand());
 			checkEndingCondition(finishing);
 			publishForces();
-			publishPath(goalProvider);
+			publishPath();
 			publishGoal();
-			publishTrajectories(cmdVelProvider);
+			publishTrajectories();
 			publishScan();
 			publishTarget();			
-			
+			if (state == RUNNING) {
+				setLeds();
+			}
 		}
 		
 		if(!r.sleep())
@@ -433,20 +361,57 @@ Controller::Controller(ros::NodeHandle& n, ros::NodeHandle& pn)
 			break;
 		}	
 	}
-	double averageControllerError=0;
-	for (unsigned i=1;i<controllerError.size();i++) {
-		averageControllerError+=controllerError[i];
-	}
-	averageControllerError/=(double)controllerError.size()-1;
-	double sd=0;
-	for (unsigned i=1;i<controllerError.size();i++) {
-		sd+=(controllerError[i] - averageControllerError) * (controllerError[i] - averageControllerError);
-	}
-	sd/=(double)controllerError.size()-1;
-	sd = sqrt(sd);
-	ROS_WARN("AVERAGE CONTROLLER ERROR: %f. SD: %f. N: %d",averageControllerError,sd,(int)controllerError.size()-1);
-}	
+}
 
+
+void Controller::setLeds()
+{
+	if (!use_leds) {
+		return;
+	}
+
+	
+	teresa_driver::Teresa_leds leds;
+	leds.request.rgb_values.resize(number_of_leds*3);
+	if (state == RUNNING) {
+		for (int i = 0; i< number_of_leds; i++) {
+			leds.request.rgb_values[i*3] = 0;
+			leds.request.rgb_values[i*3+1] = 0;
+			leds.request.rgb_values[i*3+2] = 255;		
+		}
+		utils::Angle alpha = FORCES.getData().robot.position.angleTo(FORCES.getData().target.position);
+		alpha -= FORCES.getData().robot.yaw;
+		double alpha_value = alpha.toDegree(utils::Angle::PositiveOnlyRange);
+		int index = (int)std::min(number_of_leds-1,(int)std::round( (alpha_value * (double)number_of_leds)/360.0));
+		for (int i = index-2; i< index+3; i++) {
+			int j = i;
+			if (j <0) {
+				j += number_of_leds;
+			}
+			j %= number_of_leds;
+			leds.request.rgb_values[j*3] = 255;
+			leds.request.rgb_values[j*3+1] = 255;
+			leds.request.rgb_values[j*3+2] = 255;
+		}		
+		
+	} else {
+		int s = (int)state;
+		for (int i = 0; i< number_of_leds; i++) {
+			if (i%(s+1) == 0) {
+				leds.request.rgb_values[i*3] = 0;
+				leds.request.rgb_values[i*3+1] = 0;
+				leds.request.rgb_values[i*3+2] = 255;		
+			} else {
+				leds.request.rgb_values[i*3] = 255;
+				leds.request.rgb_values[i*3+1] = 255;
+				leds.request.rgb_values[i*3+2] = 255;	
+			}
+		}
+	}
+	if (!leds_client.call(leds) || !leds.response.success) {
+		ROS_ERROR("Error trying to set robot leds");
+	}	
+}
 
 
 void Controller::pointReceived(const geometry_msgs::PointStamped::ConstPtr& point)
@@ -478,11 +443,11 @@ void Controller::checkEndingCondition(bool finishing)
 		return;
 	}
 	
-	if (state == RUNNING && (currentGoal - agents[0].goals.front().center).norm()<0.01 &&
+	if (state == RUNNING && (currentGoal - FORCES.getData().goal).norm()<0.01 &&
 		goal_timeout.check(ros::Time::now())) {
 			setState(ABORTED);
 	} else {
-		currentGoal = agents[0].goals.front().center;
+		currentGoal = FORCES.getData().goal;
 		goal_timeout.setTime(ros::Time::now());
 	}
 	
@@ -539,12 +504,12 @@ void Controller::checkTimeouts(const ros::Time& current_time)
 
 
 
-void Controller::publishTrajectories(sfm::CmdVelProvider& cmdVelProvider)
+void Controller::publishTrajectories()
 {
-	for (unsigned i=0; i< cmdVelProvider.getMarkers().markers.size(); i++) {
-		cmdVelProvider.getMarkers().markers[i].action = (state==RUNNING || state==TARGET_LOST)?0:2;
+	for (unsigned i=0; i< CMD_VEL.getMarkers().markers.size(); i++) {
+		CMD_VEL.getMarkers().markers[i].action = (state==RUNNING || state==TARGET_LOST)?0:2;
 	}
-	trajectories_pub.publish(cmdVelProvider.getMarkers());
+	trajectories_pub.publish(CMD_VEL.getMarkers());
 
 }
 
@@ -645,19 +610,19 @@ std_msgs::ColorRGBA Controller::getColor(double r, double g, double b, double a)
 void Controller::publishTarget()
 {
 	
-	if (publish_target && targetFound && (state == RUNNING || state == TARGET_LOST)) {
+	if (publish_target && FORCES.getData().targetFound && (state == RUNNING || state == TARGET_LOST)) {
 		animated_marker_msgs::AnimatedMarkerArray marker_array;
 		animated_marker_msgs::AnimatedMarker marker;
        		marker.mesh_use_embedded_materials = true;
 		marker.lifetime = ros::Duration(1.0);	
 		marker.header.frame_id = odom_id;
 		marker.header.stamp = ros::Time::now();
-		marker.action = targetFound?0:2;
+		marker.action = FORCES.getData().targetFound?0:2;
 		marker.id = 0;
 		marker.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
 		marker.mesh_resource = "package://teresa_wsbs/images/animated_walking_man.mesh";
-		marker.pose.position.x = agents[target_index].position.getX();
-		marker.pose.position.y = agents[target_index].position.getY();
+		marker.pose.position.x = targetMarkerPos.getX();
+		marker.pose.position.y = targetMarkerPos.getY();
 		marker.action = 0; 
 		marker.scale.x = PERSON_MESH_SCALE;
 		marker.scale.y = PERSON_MESH_SCALE;
@@ -666,8 +631,8 @@ void Controller::publishTarget()
 		marker.color.r = 0.255;
 		marker.color.g = 0.412;
 		marker.color.b = 0.882;
-		marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, agents[target_index].yaw.toRadian()+M_PI*0.5);
-  		marker.animation_speed =agents[target_index].linearVelocity * 0.7;
+		marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(M_PI*0.5, 0.0, targetMarkerYaw+M_PI*0.5);
+  		marker.animation_speed = targetMarkerVel * 0.7;
 		marker_array.markers.push_back(marker);	
 		target_pub.publish(marker_array);
 	}
@@ -682,8 +647,8 @@ void Controller::publishTarget()
 	marker1.id = 1;	
 	marker1.type = animated_marker_msgs::AnimatedMarker::MESH_RESOURCE;
 	marker1.mesh_resource = "package://teresa_wsbs/images/full_TERESA.dae";
-	marker1.pose.position.x = agents[0].position.getX();
-	marker1.pose.position.y = agents[0].position.getY();
+	marker1.pose.position.x = FORCES.getData().robot.position.getX();
+	marker1.pose.position.y = FORCES.getData().robot.position.getY();
 	marker1.scale.x = PERSON_MESH_SCALE*0.25;
 	marker1.scale.y = PERSON_MESH_SCALE*0.25;
 	marker1.scale.z = PERSON_MESH_SCALE*0.25;
@@ -692,8 +657,8 @@ void Controller::publishTarget()
 	marker1.color.g = 1.0;//0.412;
 	marker1.color.b = 1.0;//0.255;
 	marker1.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(
-						0.0, 0.0, agents[0].yaw.toRadian()-M_PI*0.5);
-  	marker1.animation_speed = agents[0].velocity.norm() * 0.7;
+						0.0, 0.0, FORCES.getData().robot.yaw.toRadian()-M_PI*0.5);
+  	marker1.animation_speed = FORCES.getData().robot.velocity.norm() * 0.7;
 	
 
 	
@@ -722,13 +687,6 @@ const char *Controller::getStateId(const State& state)
 	return ids[state].c_str();
 }
 
-void Controller::reset()
-{
-	agents.clear();
-	agents.resize(1);
-
-}
-
 
 void Controller::setState(const State& state)
 {
@@ -740,15 +698,16 @@ void Controller::setState(const State& state)
 	if ( (Controller::state == RUNNING && state != TARGET_LOST) ||
 		(Controller::state == TARGET_LOST && state != RUNNING)) {
 		stopRobot();
-		reset();
+		FORCES.reset();
 		publishForces();
-		publishPath(*goalProviderPtr);
+		publishPath();
 		publishGoal();
-		publishTrajectories(*cmdVelProviderPtr);
+		publishTrajectories();
 		publishTarget();
 	}
 	ROS_INFO("State is %s",getStateId(state));
 	Controller::state = state;
+	setLeds();	
 	if (state == TARGET_LOST) {
 		target_lost_timeout.setTime(ros::Time::now());
 	}
@@ -775,8 +734,8 @@ void Controller::publishForceMarker(unsigned index, const std_msgs::ColorRGBA& c
 	marker.scale.x = std::max(1e-4,force.norm());
 	marker.scale.y = 0.1;
 	marker.scale.z = 0.1;
-	marker.pose.position.x = agents[0].position.getX();
-	marker.pose.position.y = agents[0].position.getY();
+	marker.pose.position.x = FORCES.getData().robot.position.getX();
+	marker.pose.position.y = FORCES.getData().robot.position.getY();
 	marker.pose.position.z = 0;
 	marker.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,force.angle().toRadian());
 	markers.markers.push_back(marker);
@@ -786,30 +745,26 @@ void Controller::publishForceMarker(unsigned index, const std_msgs::ColorRGBA& c
 void Controller::publishScan()
 {
 	visualization_msgs::MarkerArray markers;
-	unsigned counter=0;
-	for (unsigned k= 0; k<2; k++) {
-		const std::vector<utils::Vector2d>& obstacles = k==0 ? agents[0].obstacles1 : agents[0].obstacles2; 
-		for (unsigned i = 0; i< obstacles.size(); i++) {
-			visualization_msgs::Marker marker;
-			marker.header.frame_id = "base_link";
-          		marker.header.stamp = ros::Time::now();
-			marker.ns = "scan_markers";
-			marker.type = visualization_msgs::Marker::CUBE;
-			marker.id = counter++;
-			marker.action = visualization_msgs::Marker::ADD;
-			marker.color.a = 1.0;			
-			marker.color.r = 0.0;
-            		marker.color.g = 1.0;
-            		marker.color.b = 0.0;
-			marker.lifetime = ros::Duration(0.1);
-			marker.scale.x = 0.1;
-            		marker.scale.y = 0.1;
-            		marker.scale.z = 0.1;
-			marker.pose.position.x = obstacles[i].getX();
-			marker.pose.position.y = obstacles[i].getY();
-			marker.pose.position.z = 0;
-			markers.markers.push_back(marker);
-		}
+	for (unsigned i = 0; i< FORCES.getData().obstacles.size(); i++) {
+		visualization_msgs::Marker marker;
+		marker.header.frame_id = "base_link";
+          	marker.header.stamp = ros::Time::now();
+		marker.ns = "scan_markers";
+		marker.type = visualization_msgs::Marker::CUBE;
+		marker.id = i;
+		marker.action = visualization_msgs::Marker::ADD;
+		marker.color.a = 1.0;			
+		marker.color.r = 0.0;
+            	marker.color.g = 1.0;
+            	marker.color.b = 0.0;
+		marker.lifetime = ros::Duration(0.1);
+		marker.scale.x = 0.1;
+            	marker.scale.y = 0.1;
+            	marker.scale.z = 0.1;
+		marker.pose.position.x = FORCES.getData().obstacles[i].center.getX();
+		marker.pose.position.y = FORCES.getData().obstacles[i].center.getY();
+		marker.pose.position.z = 0;
+		markers.markers.push_back(marker);
 	}	
 	scan_pub.publish(markers);
 
@@ -820,12 +775,12 @@ void Controller::publishScan()
 void Controller::publishForces()
 {
 	visualization_msgs::MarkerArray markers;
-	publishForceMarker(0,getColor(0,0,1,1),agents[0].forces.obstacleForce,markers);
-	publishForceMarker(1,getColor(0,1,1,1),agents[0].forces.socialForce,markers);	
-	publishForceMarker(2,getColor(0,1,0,1),agents[0].forces.groupForce,markers);	
-	publishForceMarker(3,getColor(1,0,0,1),agents[0].forces.desiredForce,markers);	
-	//publishForceMarker(4,getColor(1,1,0,1),agents[0].forces.globalForce,markers);	
-	publishForceMarker(4,getColor(1,1,0,1),agents[0].velocity,markers);	
+	publishForceMarker(0,getColor(0,0,1,1),FORCES.getData().obstacleForce,markers);
+	publishForceMarker(1,getColor(0,1,1,1),FORCES.getData().socialForce,markers);	
+	publishForceMarker(2,getColor(0,1,0,1),FORCES.getData().groupForce,markers);	
+	publishForceMarker(3,getColor(1,0,0,1),FORCES.getData().desiredForce,markers);	
+	//publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().globalForce,markers);	
+	publishForceMarker(4,getColor(1,1,0,1),FORCES.getData().velocityRef,markers);	
 	robot_markers_pub.publish(markers);
 
 
@@ -835,60 +790,68 @@ void Controller::publishForces()
 
 	forces.status = (uint8_t)state;
 	forces.mode = (uint8_t)controller_mode;
-	forces.target_detected = targetFound;
+	forces.target_detected = FORCES.getData().targetFound;
 	forces.target_id = targetId;
-	if (targetFound) {
-		forces.target_pose.x = agents[target_index].position.getX();
-		forces.target_pose.y = agents[target_index].position.getY();
-		forces.target_pose.theta = agents[target_index].yaw.toRadian();
-		forces.target_lin_vel = agents[target_index].linearVelocity;
-		forces.target_group_force.x =  agents[target_index].forces.groupForce.getX();
-		forces.target_group_force.y =  agents[target_index].forces.groupForce.getY();	
-		forces.target_group_vis_force.x = agents[target_index].forces.groupGazeForce.getX();
-		forces.target_group_vis_force.y = agents[target_index].forces.groupGazeForce.getY();
-		forces.target_group_att_force.x = agents[target_index].forces.groupCoherenceForce.getX();
-		forces.target_group_att_force.y = agents[target_index].forces.groupCoherenceForce.getY();
-		forces.target_group_rep_force.x = agents[target_index].forces.groupRepulsionForce.getX();
-		forces.target_group_rep_force.y = agents[target_index].forces.groupRepulsionForce.getY();
-	}
-	forces.robot_pose.x = agents[0].position.getX();
-	forces.robot_pose.y = agents[0].position.getY();
-	forces.robot_pose.theta = agents[0].yaw.toRadian();
-
-	forces.robot_lin_vel = agents[0].linearVelocity;
-	forces.robot_ang_vel = agents[0].angularVelocity;
-
-	forces.robot_antimove =  agents[0].antimove;
-	forces.robot_local_goal.x = agents[0].goals.front().center.getX();
-	forces.robot_local_goal.y = agents[0].goals.front().center.getY();
 	
+	forces.target_pose.x = FORCES.getData().target.position.getX();
+	forces.target_pose.y = FORCES.getData().target.position.getY();
+	forces.target_pose.theta = FORCES.getData().target.yaw.toRadian();
 
-	forces.robot_global_force.x = agents[0].forces.globalForce.getX();
-	forces.robot_global_force.y = agents[0].forces.globalForce.getY();
-	forces.robot_desired_force.x = agents[0].forces.desiredForce.getX();
-	forces.robot_desired_force.y = agents[0].forces.desiredForce.getY();
-	forces.robot_obstacle_force.x = agents[0].forces.obstacleForce.getX();
-	forces.robot_obstacle_force.y = agents[0].forces.obstacleForce.getY();
-	forces.robot_social_force.x = agents[0].forces.socialForce.getX();
-	forces.robot_social_force.y = agents[0].forces.socialForce.getY();
-	forces.robot_group_force.x =  agents[0].forces.groupForce.getX();
-	forces.robot_group_force.y =  agents[0].forces.groupForce.getY();	
-	forces.robot_group_vis_force.x = agents[0].forces.groupGazeForce.getX();
-	forces.robot_group_vis_force.y = agents[0].forces.groupGazeForce.getY();
-	forces.robot_group_att_force.x = agents[0].forces.groupCoherenceForce.getX();
-	forces.robot_group_att_force.y = agents[0].forces.groupCoherenceForce.getY();
-	forces.robot_group_rep_force.x = agents[0].forces.groupRepulsionForce.getX();
-	forces.robot_group_rep_force.y = agents[0].forces.groupRepulsionForce.getY();
-	forces.robot_vref.x = agents[0].velocity.getX();
-	forces.robot_vref.y = agents[0].velocity.getY();
+	forces.robot_pose.x = FORCES.getData().robot.position.getX();
+	forces.robot_pose.y = FORCES.getData().robot.position.getY();
+	forces.robot_pose.theta = FORCES.getData().robot.yaw.toRadian();
+
+	forces.target_lin_vel = FORCES.getData().target.linearVelocity;
+	
+	forces.robot_lin_vel = FORCES.getData().robot.linearVelocity;
+	forces.robot_ang_vel = FORCES.getData().robot.angularVelocity;
+
+
+	forces.robot_local_goal.x = FORCES.getData().goal.getX();
+	forces.robot_local_goal.y = FORCES.getData().goal.getY();
+	forces.robot_antimove =  FORCES.getData().validGoal;
+
+	utils::Vector2d vis, att, rep, group;
+
+	FORCES.computeTargetGroupForces(vis, att, rep);
+
+	group = vis + att + rep;
+
+	forces.target_group_force.x =  group.getX();
+	forces.target_group_force.y =  group.getY();	
+	forces.target_group_vis_force.x = vis.getX();
+	forces.target_group_vis_force.y = vis.getY();
+	forces.target_group_att_force.x = att.getX();
+	forces.target_group_att_force.y = att.getY();
+	forces.target_group_rep_force.x = rep.getX();
+	forces.target_group_rep_force.y = rep.getY();
+
+
+	forces.robot_global_force.x = FORCES.getData().globalForce.getX();
+	forces.robot_global_force.y = FORCES.getData().globalForce.getY();
+	forces.robot_desired_force.x = FORCES.getData().desiredForce.getX();
+	forces.robot_desired_force.y = FORCES.getData().desiredForce.getY();
+	forces.robot_obstacle_force.x = FORCES.getData().obstacleForce.getX();
+	forces.robot_obstacle_force.y = FORCES.getData().obstacleForce.getY();
+	forces.robot_social_force.x = FORCES.getData().socialForce.getX();
+	forces.robot_social_force.y = FORCES.getData().socialForce.getY();
+	forces.robot_group_force.x =  FORCES.getData().groupForce.getX();
+	forces.robot_group_force.y =  FORCES.getData().groupForce.getY();	
+	forces.robot_group_vis_force.x = FORCES.getData().groupGazeForce.getX();
+	forces.robot_group_vis_force.y = FORCES.getData().groupGazeForce.getY();
+	forces.robot_group_att_force.x = FORCES.getData().groupCoherenceForce.getX();
+	forces.robot_group_att_force.y = FORCES.getData().groupCoherenceForce.getY();
+	forces.robot_group_rep_force.x = FORCES.getData().groupRepulsionForce.getX();
+	forces.robot_group_rep_force.y = FORCES.getData().groupRepulsionForce.getY();
+	forces.robot_vref.x = FORCES.getData().velocityRef.getX();
+	forces.robot_vref.y = FORCES.getData().velocityRef.getY();
 
 	forces_pub.publish(forces);
 }
 
 
-void Controller::publishPath(const GoalProvider& goalProvider)
+void Controller::publishPath()
 {
-	
 	visualization_msgs::Marker marker;
 	marker.header.frame_id = "/odom";
 	marker.header.stamp = ros::Time::now();
@@ -896,19 +859,19 @@ void Controller::publishPath(const GoalProvider& goalProvider)
 	marker.type = 4;
 	marker.id = 0;
 	marker.lifetime = ros::Duration(1.0);
-	marker.action = goalProvider.getHistory().size()>0  && (state==RUNNING || state==TARGET_LOST)?0:2;
+	marker.action = FORCES.getData().targetHistory.size()>0  && (state==RUNNING || state==TARGET_LOST)?0:2;
 	marker.color = getColor(0,1,0,1);
 	marker.scale.x = 0.05;
 	
-	for (auto it = 	goalProvider.getHistory().begin(); it != goalProvider.getHistory().end(); ++it) {
+	for (auto it = 	FORCES.getData().targetHistory.begin(); it != FORCES.getData().targetHistory.end(); ++it) {
 		geometry_msgs::Point p;
-		p.x = it->getX();
-		p.y = it->getY();
+		p.x = it->position.getX();
+		p.y = it->position.getY();
 		p.z = 0;
 		marker.points.push_back(p);
 	}
 	path_pub.publish(marker);	
-	
+
 
 }
 
@@ -922,13 +885,13 @@ void Controller::publishGoal()
 	marker.type = 2;
 	marker.id = 0;
 	marker.lifetime = ros::Duration(1.0);
-	marker.action = !agents[0].antimove && (state==RUNNING || state==TARGET_LOST)?0:2;
+	marker.action = FORCES.getData().validGoal && (state==RUNNING || state==TARGET_LOST)?0:2;
 	marker.color = getColor(1,0,0,1);
 	marker.scale.x = 0.2;
 	marker.scale.y = 0.2;
 	marker.scale.z = 0.2;
-	marker.pose.position.x = agents[0].goals.front().center.getX();
-	marker.pose.position.y = agents[0].goals.front().center.getY();
+	marker.pose.position.x = FORCES.getData().goal.getX();
+	marker.pose.position.y = FORCES.getData().goal.getY();
 	marker.pose.position.z = 0;
 	
 
@@ -944,72 +907,39 @@ void Controller::odomReceived(const nav_msgs::Odometry::ConstPtr& odom)
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (odom->header.frame_id != "/odom" && odom->header.frame_id !="odom") {
-		ROS_ERROR("Odometry frame is %s, it should be odom",odom->header.frame_id.c_str()); 
-		return;
-	}	
-	agents[0].position.set(odom->pose.pose.position.x,odom->pose.pose.position.y); 
-	agents[0].yaw = utils::Angle::fromRadian(tf::getYaw(odom->pose.pose.orientation));
-	agents[0].linearVelocity = odom->twist.twist.linear.x;
-	agents[0].angularVelocity = odom->twist.twist.angular.z;	
-	agents[0].velocity.set(odom->twist.twist.linear.x * agents[0].yaw.cos(), odom->twist.twist.linear.x * agents[0].yaw.sin());
-	odom_timeout.setTime(ros::Time::now());
-	if (state == WAITING_FOR_ODOM) {
-		setState(WAITING_FOR_LASER);
-	}
-
+	if (FORCES.setRobot(odom)) {
+		odom_timeout.setTime(ros::Time::now());
+		if (state == WAITING_FOR_ODOM) {
+			setState(WAITING_FOR_LASER);
+		}
+	} 
 }
 
 
-void Controller::laserReceived(const sensor_msgs::LaserScan::ConstPtr& scan)
+void Controller::laserReceived(const sensor_msgs::LaserScan::ConstPtr& laser)
 {
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (scan->header.frame_id != "/base_link" && scan->header.frame_id !="base_link") {
-		ROS_ERROR("Laser frame is %s, it should be base_link",scan->header.frame_id.c_str()); 
-		return;
-	}
-	utils::Angle alpha = agents[0].yaw + utils::Angle::fromRadian(scan->angle_min);
-	utils::Angle angle_inc = utils::Angle::fromRadian(scan->angle_increment);
-	agents[0].obstacles1.clear();
-	for (unsigned i=0; i<scan->ranges.size();i++) {
-		if (!std::isnan(scan->ranges[i]) && scan->ranges[i]<obstacle_distance_threshold) {
-			agents[0].obstacles1.emplace_back(scan->ranges[i]*alpha.cos(),scan->ranges[i]*alpha.sin());
+	if (FORCES.setLaser(laser)) {
+		laser_timeout.setTime(ros::Time::now());
+		if (state == WAITING_FOR_LASER) {
+			setState(xtion_id.empty() ? WAITING_FOR_PEOPLE : WAITING_FOR_XTION);
 		}
-		alpha+=angle_inc;
-	}	
-	laser_timeout.setTime(ros::Time::now());
-	if (state == WAITING_FOR_LASER) {
-		setState(xtion_id.empty() ? WAITING_FOR_PEOPLE : WAITING_FOR_XTION);
 	}
-
 }
 
-void Controller::xtionReceived(const sensor_msgs::LaserScan::ConstPtr& scan)
+void Controller::xtionReceived(const sensor_msgs::LaserScan::ConstPtr& xtion)
 {
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (scan->header.frame_id != "/base_link" && scan->header.frame_id !="base_link") {
-		ROS_ERROR("Xtion frame is %s, it should be base_link",scan->header.frame_id.c_str()); 
-		return;
-	}
-	utils::Angle alpha = agents[0].yaw + utils::Angle::fromRadian(scan->angle_min);
-	utils::Angle angle_inc = utils::Angle::fromRadian(scan->angle_increment);
-	agents[0].obstacles2.clear();
-	for (unsigned i=0; i<scan->ranges.size();i++) {
-		if (!std::isnan(scan->ranges[i]) && scan->ranges[i]<obstacle_distance_threshold) {
-			agents[0].obstacles2.emplace_back(scan->ranges[i]*alpha.cos(),scan->ranges[i]*alpha.sin());
+	if (FORCES.setXtion(xtion)) {
+		xtion_timeout.setTime(ros::Time::now());
+		if (state == WAITING_FOR_XTION) {
+			setState(WAITING_FOR_PEOPLE);
 		}
-		alpha+=angle_inc;
-	}	
-	xtion_timeout.setTime(ros::Time::now());
-	if (state == WAITING_FOR_XTION) {
-		setState(WAITING_FOR_PEOPLE);
 	}
-
-
 }
 
 void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& people)
@@ -1017,50 +947,18 @@ void Controller::peopleReceived(const upo_msgs::PersonPoseArrayUPO::ConstPtr& pe
 	if (state == WAITING_FOR_START || state == FINISHED || state == ABORTED) {
 		return;
 	}
-	if (people->header.frame_id != "/odom" && people->header.frame_id !="odom") {
-		ROS_ERROR("People frame is %s, it should be odom",people->header.frame_id.c_str()); 
-		return;
-	}
-	target_index=0;
-	targetFound=false;
-	agents[0].groupId = -1;
-	agents.resize(people->personPoses.size()+1);
-
-	for (unsigned i=0; i< people->personPoses.size(); i++) {
-		agents[i+1].position.set(people->personPoses[i].position.x,people->personPoses[i].position.y);
-		agents[i+1].yaw = utils::Angle::fromRadian(tf::getYaw(people->personPoses[i].orientation));
-		agents[i+1].velocity.set(people->personPoses[i].vel * agents[i+1].yaw.cos(), people->personPoses[i].vel * agents[i+1].yaw.sin());
-		agents[i+1].linearVelocity = agents[i+1].velocity.norm();
-		agents[i+1].radius = person_radius;
-		agents[i+1].teleoperated=false;
-		if (fabs(people->personPoses[i].vel) < 0.05) {
-			agents[i+1].velocity.set(0,0);
-		} 
-		agents[i+1].goals.clear();
-		sfm::Goal naiveGoal;
-		naiveGoal.center =agents[i+1].position + naive_goal_time * agents[i+1].velocity;
-		naiveGoal.radius = goal_radius;
-		agents[i+1].goals.push_back(naiveGoal);
-		if (people->personPoses[i].id == targetId) {
-			targetFound = true;
-			target_index=i+1;
-			agents[i+1].desiredVelocity = target_velocity;
-			agents[i+1].groupId = 0;
-			agents[0].groupId = 0;
-			targetPos = agents[i+1].position;
-			targetVel = agents[i+1].velocity;
-		} else {
-			agents[i+1].desiredVelocity = people_velocity;
-			agents[i+1].groupId = -1;
+	if (FORCES.setPeople(people, targetId, false, targetPos, targetVel)) {
+		targetMarkerPos = FORCES.getData().target.position; 
+		targetMarkerVel = FORCES.getData().target.velocity.norm();
+		targetMarkerYaw = FORCES.getData().target.yaw.toRadian();
+		people_timeout.setTime(ros::Time::now());
+		if (state == RUNNING && !FORCES.getData().targetFound) {
+			setState(TARGET_LOST);
+		} else if (state == TARGET_LOST && FORCES.getData().targetFound) {
+			setState(RUNNING);
+		} else	if (state == WAITING_FOR_PEOPLE) {
+			setState(FORCES.getData().targetFound ? RUNNING : TARGET_LOST );
 		}
-	}
-	people_timeout.setTime(ros::Time::now());
-	if (state == RUNNING && agents[0].groupId == -1) {
-		setState(TARGET_LOST);
-	} else if (state == TARGET_LOST && agents[0].groupId != -1) {
-		setState(RUNNING);
-	} else	if (state == WAITING_FOR_PEOPLE) {
-		setState(agents[0].groupId != -1 ? RUNNING : TARGET_LOST);
 	}
 }
 

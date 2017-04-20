@@ -5,7 +5,6 @@
 #include <teresa_wsbs/common.hpp>
 #include <lightpomcp/MonteCarloSimulator.hpp>
 #include <lightpomcp/Random.hpp>
-#include <lightpomcp/Belief.hpp>
 #include <lightsfm/rosmap.hpp>
 
 
@@ -37,6 +36,7 @@ struct State
 	utils::Vector2d target_vel;
 	utils::Vector2d goal;
 	
+		
 	bool operator == (const State& other) const
 	{
 		return robot_pos == other.robot_pos && 
@@ -134,31 +134,31 @@ class Simulator : public pomcp::Simulator<State,Observation,ControllerMode>
 {
 public:
 
-	pomcp::VectorBelief<State> lastBelief;
 	utils::Vector2d robot_pos;
 	utils::Vector2d robot_vel;
 	utils::Vector2d target_pos;
 	utils::Vector2d target_vel;
 
 	std::vector<sfm::Agent> otherAgents;
+	std::vector<std::vector<sfm::Agent>> futureAgents;
 	
 
 	Simulator(GoalProvider& goalProvider, double discount, double robotGridCellSize, double targetGridCellSize, double trackingRange, double runningTime, ModelType modelType);
 	~Simulator() {}
-	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward) const; 
-	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const;
+	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward,unsigned depth) const; 
+	virtual bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward,unsigned depth) const;
 	virtual State& sampleInitialState(State& state) const;
 	virtual double getDiscount() const  {return discount;}
 	virtual unsigned getNumActions() const {return 8;}
 	virtual const ControllerMode& getAction(unsigned actionIndex) const {return actions[actionIndex];}
 	virtual bool allActionsAreValid(const State& state) const {return false;}
 	virtual bool isValidAction(const State& state, unsigned actionIndex) const;
-
-	void addOtherAgent(double x, double y);
+	
+	void addOtherAgent(double x, double y, double vel, double yaw);
 
 private:
 	void getObservation(const State& state, Observation& observation) const;
-	bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward,double dt) const;	
+	bool simulate(const State& state, unsigned actionIndex, State& nextState, double& reward,double dt,unsigned depth) const;	
 	double getReward(const State& state,double force) const;
 	static bool intimateDistance(const utils::Vector2d& x, const utils::Vector2d& p, const utils::Angle& yaw, double factor);
 	static double getConfort(const State& state);
@@ -175,6 +175,8 @@ private:
 	double alphaFactor;
 	double betaFactor;
 	double gammaFactor; 
+	
+	unsigned root_index;
 };
 
 inline
@@ -209,25 +211,20 @@ State& Simulator::sampleInitialState(State& state) const
 	state.robot_vel = robot_vel;
 	state.target_pos = target_pos;
 	state.target_vel = target_vel;
-
-	if (lastBelief.empty()) {
-		state.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
-		
-	} else {
-		state.goal = lastBelief.sample().goal;
-	}
+	state.goal = goalProvider.getGoals()[utils::RANDOM(goalProvider.getGoals().size())];
+	
 	return state;
 }
 
 inline
-bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward) const
+bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward,unsigned depth) const
 {
 	State a,b;
 	a=state;
 	double r;
 	reward=0;
 	for (unsigned i = 0; i< 5; i++) {
-		simulate(a,actionIndex,b,r,runningTime/5);
+		simulate(a,actionIndex,b,r,runningTime/5,depth);
 		reward+=r;
 		a=b;
 	}
@@ -237,9 +234,10 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 }
 
 inline
-bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward, double dt) const
+bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, double& reward, double dt,unsigned depth) const
 {
 	GoalProvider tmpGoalProvider(0.5,100,2.0,2.0,1.0,"map",goalProvider.getPathProvider(),false);
+	
 	std::vector<sfm::Agent> agents;
 	agents.resize(2 + otherAgents.size());
 	agents[0].position = state.robot_pos;
@@ -264,7 +262,8 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents[1].position = state.target_pos;
 	agents[1].velocity = state.target_vel;
 	agents[1].yaw = state.target_vel.angle();
-	agents[1].desiredVelocity = 0.9; //1.2;
+	agents[1].params.forceFactorDesired = 4.0;
+	agents[1].desiredVelocity = 0.9;
  	
 	sfm::Goal targetLocalGoal;
 	targetLocalGoal.radius = goalRadius;
@@ -273,22 +272,44 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	agents[1].goals.push_back(targetLocalGoal);
 	
 	agents[1].groupId = 0;
-
+	
 	for(unsigned int i=0; i< otherAgents.size();i++)
 	{
-		agents[2+i] = otherAgents[i];
+		if (depth==0) {
+			agents[2+i] = otherAgents[i];
+		} else if (depth<11) {
+			agents[2+i] = futureAgents[depth-1][i];
+		} else {
+			agents[2+i] = futureAgents[9][i];
+		}
 	}
-
+	
+	/*
+	for (unsigned i=2; i<agents.size();i++) {
+		sfm::Goal g;
+		g.center = agents[i].position + 2.0*agents[i].velocity;
+		g.radius = 0.25;
+		agents[i].goals.clear();
+		agents[i].goals.push_back(g);
+	}
+	*/
 	sfm::Map *map = &sfm::MAP;
 	sfm::SFM.computeForces(agents,map);
 	sfm::SFM.updatePosition(agents,dt);
-	
+	double targetSocialWork = agents[0].forces.groupForce.dot(agents[1].movement);
+	double peopleSocialWork = 0;	
+	for (unsigned i=2;i<agents.size();i++) {
+		peopleSocialWork += agents[i].forces.robotSocialForce.dot(agents[i].movement);
+	}	
+
+	//std::cout<<targetSocialWork<<" "<<peopleSocialWork<<std::endl;
 	
 	nextState.robot_pos = agents[0].position+utils::Vector2d(utils::RANDOM(0,0.2),utils::RANDOM(0,0.2));
 	nextState.robot_vel = agents[0].velocity;
 	
 	nextState.target_pos = agents[1].position+utils::Vector2d(utils::RANDOM(0,0.2),utils::RANDOM(0,0.2));
 	nextState.target_vel = agents[1].velocity;
+	
 	
 	double p = (nextState.target_pos - state.goal).norm()<0.5 ? 0.1 : 0.01; 
 	
@@ -304,8 +325,10 @@ bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextSt
 	//	nextState.goal = state.goal;
 	//}
 	
+
+	reward = 0.5 * targetSocialWork + 0.5 * peopleSocialWork;
 	//reward = getReward(nextState,agents[1].forces.groupForce.norm());	
-	reward = getConfort(nextState);
+	//reward = getConfort(nextState);
 
 	return false;
 	//return (nextState.target_pos - nextState.goal).norm() <= goalRadius;
@@ -404,13 +427,12 @@ double Simulator::getReward(const State& state,double force) const
 }
 
 inline
-bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward) const
+bool Simulator::simulate(const State& state, unsigned actionIndex, State& nextState, Observation& observation, double& reward,unsigned depth) const
 {
-	bool r=simulate(state,actionIndex,nextState,reward);
+	bool r=simulate(state,actionIndex,nextState,reward,depth);
 	getObservation(nextState,observation); 
 	return r;
 }
-
 
 inline
 bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
@@ -471,14 +493,14 @@ bool Simulator::isValidAction(const State& state, unsigned actionIndex) const
 }
 
   
-void Simulator::addOtherAgent(double x, double y)
+void Simulator::addOtherAgent(double x, double y, double vel, double yaw)
 {
 	sfm::Agent a;
 
 	a.position = utils::Vector2d(x,y);
-	a.velocity = utils::Vector2d(0.0,0.0);
-	a.yaw.setRadian(0.0);
-	a.desiredVelocity = 0.0;
+	a.velocity = utils::Vector2d(vel*cos(yaw),vel*sin(yaw));
+	a.yaw = utils::Angle::fromRadian(yaw);
+	a.desiredVelocity = vel;
 	a.groupId = -1;
 
 	otherAgents.push_back(a);

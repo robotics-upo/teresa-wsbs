@@ -30,11 +30,12 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/UInt8.h>
-#include <lightsfm/sfm.hpp>
-#include <lightsfm/cmd_vel.hpp>
 #include <tf/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
+
+#include <lightsfm/sfm.hpp>
+#include <lightsfm/cmd_vel.hpp>
 
 namespace wsbs
 {
